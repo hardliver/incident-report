@@ -1,14 +1,14 @@
 {
  "frame": [
-  64,
-  128
+  144,
+  160
  ],
  "pivot": [
-  32,
-  118
+  72,
+  134
  ],
  "pixels_per_meter": 62,
- "directions": "0 = facing camera, then clockwise in 45 deg steps (2 = facing screen right)",
+ "directions": "0 = facing camera, 2 = facing screen left, 4 = facing away, 6 = facing screen right",
  "rows": [
   {
    "anim": "idle",
@@ -129,6 +129,126 @@
    "anim": "grab",
    "dir": 7,
    "frames": 4
+  },
+  {
+   "anim": "hurt",
+   "dir": 0,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 1,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 2,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 3,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 4,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 5,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 6,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 7,
+   "frames": 1
+  },
+  {
+   "anim": "down",
+   "dir": 0,
+   "frames": 6
+  },
+  {
+   "anim": "down",
+   "dir": 1,
+   "frames": 6
+  },
+  {
+   "anim": "down",
+   "dir": 2,
+   "frames": 6
+  },
+  {
+   "anim": "down",
+   "dir": 3,
+   "frames": 6
+  },
+  {
+   "anim": "down",
+   "dir": 4,
+   "frames": 6
+  },
+  {
+   "anim": "down",
+   "dir": 5,
+   "frames": 6
+  },
+  {
+   "anim": "down",
+   "dir": 6,
+   "frames": 6
+  },
+  {
+   "anim": "down",
+   "dir": 7,
+   "frames": 6
+  },
+  {
+   "anim": "feed",
+   "dir": 0,
+   "frames": 2
+  },
+  {
+   "anim": "feed",
+   "dir": 1,
+   "frames": 2
+  },
+  {
+   "anim": "feed",
+   "dir": 2,
+   "frames": 2
+  },
+  {
+   "anim": "feed",
+   "dir": 3,
+   "frames": 2
+  },
+  {
+   "anim": "feed",
+   "dir": 4,
+   "frames": 2
+  },
+  {
+   "anim": "feed",
+   "dir": 5,
+   "frames": 2
+  },
+  {
+   "anim": "feed",
+   "dir": 6,
+   "frames": 2
+  },
+  {
+   "anim": "feed",
+   "dir": 7,
+   "frames": 2
   }
  ]
 }

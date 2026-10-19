@@ -39,13 +39,18 @@ function W.update_camera(x, y)
     return false
 end
 
+-- 角色的顏色依房間的光線染色（從物品欄這種不染色的畫面回來時也要呼叫）
+function W.apply_tint()
+    local t = W.room.tint
+    paltint(16, 112, t[1], t[2], t[3])
+end
+
 -- 進入房間。角色的顏色依房間的光線染色（暖色的燈、冷色的月光）
 function W.load(id, x, y)
     W.id = id
     W.room = ROOMS[id]
     W.cam_id = nil
-    local t = W.room.tint
-    paltint(16, 112, t[1], t[2], t[3])
+    W.apply_tint()
     if not W.update_camera(x, y) then
         -- 不在任何鏡頭區裡（不該發生）：用第一個鏡頭
         local first = W.room.zones[1].cam
@@ -79,14 +84,15 @@ function W.scale(zf, ppm)
     return 256 * W.cam.foc * 4096000 // (zf * ppm)
 end
 
--- 角色在鏡頭眼中面向哪個方向：0 = 面向鏡頭，順時針每 45° 一格，2 = 面向畫面右邊。
+-- 角色在鏡頭眼中面向哪個方向。角色圖的方向：0 = 面向鏡頭，2 = 面向畫面左邊，
+-- 4 = 背對鏡頭，6 = 面向畫面右邊（每 45° 一格）。
 -- 回傳（圖的方向 0–4，要不要左右翻轉）：5–7 沒有存，用 3–1 翻轉
 function W.view_dir(yaw)
     local fx, fy = G.sin(yaw), G.cos(yaw)                 -- 角色面向的方向（世界）
     local c = W.cam
-    local a = (fx * c.r[1] + fy * c.r[2]) // 4096         -- 往畫面右邊的分量
-    local b = -(fx * c.f[1] + fy * c.f[2]) // 4096        -- 往鏡頭（面向觀眾）的分量
-    local d = G.angle8(a, b) // 45                        -- angle8：0 = 面向鏡頭，90 = 面向右
+    local left = -(fx * c.r[1] + fy * c.r[2]) // 4096     -- 往畫面左邊的分量
+    local toward = -(fx * c.f[1] + fy * c.f[2]) // 4096   -- 往鏡頭（面向觀眾）的分量
+    local d = G.angle8(left, toward) // 45                -- angle8：0 = 面向鏡頭，90 = 面向左
     if d > 4 then return 8 - d, true end
     return d, false
 end
@@ -115,13 +121,42 @@ function W.can_stand(x, y)
         and free_point(x, y + r) and free_point(x, y - r)
 end
 
+-- 會擋路的角色（主角、活著的殭屍）。由主程式每次換房間時設定
+W.actors = {}
+local BODY = 560   -- 兩個角色中心至少相隔多遠（公釐）
+
+-- 從 (x, y) 走到 (nx, ny) 會不會撞到別的角色。已經貼在一起時，只要是「離開」就可以走（不然會卡住）
+local function bump(self, x, y, nx, ny)
+    for _, a in ipairs(W.actors) do
+        if a ~= self and not a.dead then
+            local ox, oy = nx - a.x, ny - a.y
+            local d2 = ox * ox + oy * oy
+            if d2 < BODY * BODY then
+                local px, py = x - a.x, y - a.y
+                if d2 <= px * px + py * py then return true end
+            end
+        end
+    end
+    return false
+end
+
+local function ok(self, x, y, nx, ny)
+    return W.can_stand(nx, ny) and not bump(self, x, y, nx, ny)
+end
+
 -- 從 (x, y) 往 (dx, dy) 移動。撞到東西時試著只走 x 或只走 y，
--- 貼著牆斜走時才會「滑」過去，而不是整個卡住
-function W.move(x, y, dx, dy)
-    if W.can_stand(x + dx, y + dy) then return x + dx, y + dy end
-    if dx ~= 0 and W.can_stand(x + dx, y) then return x + dx, y end
-    if dy ~= 0 and W.can_stand(x, y + dy) then return x, y + dy end
+-- 貼著牆斜走時才會「滑」過去，而不是整個卡住。self：誰在走（不和自己相撞）
+function W.move(x, y, dx, dy, self)
+    if ok(self, x, y, x + dx, y + dy) then return x + dx, y + dy end
+    if dx ~= 0 and ok(self, x, y, x + dx, y) then return x + dx, y end
+    if dy ~= 0 and ok(self, x, y, x, y + dy) then return x, y + dy end
     return x, y
+end
+
+-- 兩點的距離（公釐）。整數開根號：先用浮點數算，再取整數（只用在比較遠近，不影響重播）
+function W.dist(ax, ay, bx, by)
+    local dx, dy = ax - bx, ay - by
+    return math.floor(math.sqrt(dx * dx + dy * dy))
 end
 
 -- ============================================================

@@ -2,7 +2,8 @@
 
 用法：python3 tests/shots.py 腳本.txt 幀,幀,… [輸出資料夾] [--start 房間,x,y,角度]
 --keep-saves：不清空存檔（接著上一次的測試，例如先存檔、再測讀檔）
---start：不從序章開始，報告畫面之後直接站在那個房間（測試用，見 main.lua 的 DEV_START）
+--start：不從序章開始，報告畫面之後直接站在那個房間（測試用，見 main.lua 的 DEV_START）。
+  後面可以再接 Lua 的欄位，例如 --start save_room,1400,2600,0,hp=20,give={painkillers=1}
 腳本格式見 comet/platform/mac/main.c 的 --input：一行一段「幀數 按鍵…」。
 需要 Comet 的 Mac 版播放器（環境變數 COMET，預設 ../comet/build/mac）。
 存檔放在 build/test_saves（每次執行前清空），所以每次都是從沒有存檔開始。
@@ -25,12 +26,12 @@ def main():
     cart = "build/incident.lua"
     if "--start" in args:
         k = args.index("--start")
-        room, x, y, yaw = args[k + 1].split(",")
+        room, x, y, yaw, *extra = args[k + 1].split(",")
         args = args[:k] + args[k + 2:]
         cart = "build/incident_test.lua"
         src = open("build/incident.lua", encoding="utf-8").read()
         open(cart, "w", encoding="utf-8").write(
-            src + f'\nDEV_START = {{ room = "{room}", x = {int(x)}, y = {int(y)}, yaw = {int(yaw)} }}\n')
+            src + f'\nDEV_START = {{ room = "{room}", x = {int(x)}, y = {int(y)}, yaw = {int(yaw)}, {",".join(extra)} }}\n')
     script = args[0]
     frames = [int(f) for f in args[1].split(",")]
     outdir = args[2] if len(args) > 2 else "build/shots"

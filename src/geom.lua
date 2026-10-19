@@ -63,3 +63,27 @@ function G.clamp(v, lo, hi)
     if v > hi then return hi end
     return v
 end
+
+-- 從原點看 (dx, dy) 是幾度（0 = +y，順時針）。先用 8 方向找大概，再在 ±23° 裡找最準的那一度。
+-- 不用 math.atan：查表、比內積，各平台結果一定一樣
+function G.yaw_to(dx, dy)
+    local base = G.angle8(dx, dy)
+    local best, best_dot = base, nil
+    for a = base - 23, base + 23 do
+        local d = dx * G.sin(a) + dy * G.cos(a)
+        if best_dot == nil or d > best_dot then best, best_dot = a % 360, d end
+    end
+    return best
+end
+
+-- 從 yaw 轉向 target，一次最多轉 step 度（走最短的方向）。回傳新的角度
+function G.turn_toward(yaw, target, step)
+    local diff = (target - yaw + 540) % 360 - 180   -- -180 .. 179
+    if diff > step then diff = step elseif diff < -step then diff = -step end
+    return (yaw + diff) % 360
+end
+
+-- 兩個角度差幾度（0 .. 180）
+function G.angle_diff(a, b)
+    return math.abs((a - b + 540) % 360 - 180)
+end

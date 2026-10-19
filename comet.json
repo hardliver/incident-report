@@ -6,8 +6,12 @@
     "src/geom.lua",
     "src/world.lua",
     "src/actor.lua",
+    "src/items.lua",
     "src/hotspots.lua",
     "src/ui.lua",
+    "src/enemy.lua",
+    "src/player.lua",
+    "src/invui.lua",
     "src/main.lua"
   ],
   "output": "build/incident.lua",

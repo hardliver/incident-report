@@ -34,9 +34,27 @@ HOT = {
         } },
     },
     exterior = {
+        { kind = "pickup", x = 3400, y = 7500, give = "handgun_ammo", count = 15, flag = "car_ammo",
+          text = "巡邏車的後車廂。備用子彈還在原本的位置。" },
         { kind = "look", x = 3400, y = 7500, text = {
             "我的巡邏車。無線電只剩下雜訊。",
         } },
+    },
+    cloakroom = {
+        { kind = "pickup", x = 1500, y = 2400, give = "painkillers", count = 1, flag = "cloak_pills",
+          text = "大衣口袋裡有一盒止痛藥。" },
+    },
+}
+
+-- 房間裡的殭屍。id 不能重複（殺掉之後記在 FLAGS["dead_" .. id]）。
+-- state 省略 = 站著（idle）；"feed" = 跪著啃食，靠近才會站起來
+ENEMIES = {
+    cloakroom = {
+        { id = "cloak_first", chr = "zombie_guest", x = 2700, y = 1500, yaw = 90, state = "feed", hp = 55 },
+    },
+    dining = {
+        { id = "dining_guest", chr = "zombie_guest", x = -3000, y = 9000, yaw = 180, hp = 60 },
+        { id = "dining_maid", chr = "zombie_maid", x = 3000, y = 8200, yaw = 200, hp = 50 },
     },
 }
 
@@ -47,7 +65,7 @@ function find_hotspot(room_id, x, y, yaw)
     local fx, fy = G.sin(yaw), G.cos(yaw)
     local best, best_d = nil, 1600 * 1600
     for _, h in ipairs(list) do
-        if not (h.flag and FLAGS[h.flag]) then
+        if not (h.kind == "pickup" and FLAGS[h.flag]) then
             local dx, dy = h.x - x, h.y - y
             local d2 = dx * dx + dy * dy
             -- 面向判斷：(dx, dy) 和面向的內積 > 距離 × cos60°（= 一半）

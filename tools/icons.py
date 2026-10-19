@@ -160,6 +160,22 @@ def shells(k):
         k.cyl((0, 0, 0), 0.0175, 0.02, brass, seg=8, uv=0.1, M=Mi, name="base")
 
 
+def handgun_ammo(k):
+    """手槍子彈：一盒紙盒（打開的蓋子）＋旁邊立著兩顆子彈。"""
+    box = mat("ammo_box", color=(0.62, 0.52, 0.32), rough=0.8)
+    stripe = mat("ammo_stripe", color=(0.35, 0.08, 0.06), rough=0.7)
+    brass = mat("brass", "brass", metal=0.8, rough=0.3)
+    lead = mat("bullet_lead", color=(0.45, 0.45, 0.47), metal=0.5, rough=0.4)
+    k.box((-0.06, -0.035, -0.06), (0.06, 0.035, 0.0), box, uv=0.1, name="box")
+    k.box((-0.0605, -0.0355, -0.04), (0.0605, 0.0355, -0.025), stripe, uv=0.1, name="stripe")
+    for i in range(4):   # 盒子裡露出的彈頭
+        x = -0.042 + i * 0.028
+        k.cyl((x, 0, 0.0), 0.0045, 0.012, lead, seg=6, uv=0.05, name="tip")
+    for (x, y) in ((0.085, 0.01), (0.1, -0.025)):
+        k.cyl((x, y, -0.06), 0.0048, 0.019, brass, seg=8, uv=0.05, name="case")
+        k.cyl((x, y, -0.041), 0.0045, 0.011, lead, seg=8, uv=0.05, name="tip")
+
+
 # ---------------- 第 1–2 章的道具（2026-10-19）
 
 def canned_food(k):
@@ -216,7 +232,7 @@ def document(k):
 
 
 ICONS = {
-    "handgun": handgun, "shotgun": shotgun, "shells": shells, "flashlight": flashlight,
+    "handgun": handgun, "handgun_ammo": handgun_ammo, "shotgun": shotgun, "shells": shells, "flashlight": flashlight,
     "bandage": bandage, "painkillers": painkillers, "ink_ribbon": ink_ribbon, "rusty_key": rusty_key,
     "medal_silver": medal((0.6, 0.6, 0.62), "medal_silver"), "medal_gold": medal((0.85, 0.65, 0.2), "medal_gold"),
     "medal_platinum": medal((0.78, 0.8, 0.84), "medal_platinum"), "medal_diamond": medal((0.6, 0.85, 1.0), "medal_diamond"),
@@ -227,7 +243,7 @@ ICONS = {
 
 
 # 小東西放大一點（正交攝影機的視野寬度，公尺）
-SCALE = {"shells": 0.24, "lighter": 0.16, "painkillers": 0.3, "ink_ribbon": 0.3, "rusty_key": 0.34,
+SCALE = {"shells": 0.24, "handgun_ammo": 0.26, "lighter": 0.16, "painkillers": 0.3, "ink_ribbon": 0.3, "rusty_key": 0.34,
          "medal_silver": 0.34, "medal_gold": 0.34, "medal_platinum": 0.34, "medal_diamond": 0.34, "bandage": 0.34,
          "id_card": 0.3, "herbicide": 0.3, "canned_food": 0.28, "valve_handle": 0.3, "room_card": 0.3,
          "locker_key": 0.36, "document": 0.34, "barbell_plate": 0.32}

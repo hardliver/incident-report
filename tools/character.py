@@ -474,7 +474,10 @@ def pose(rig, angles, loc=(0, 0, 0)):
         a = angles.get(pb.name, (0, 0, 0))
         pb.rotation_euler = Euler([math.radians(v) for v in a], "XYZ")
     root = next(pb for pb in rig.pose.bones if pb.parent is None)    # 人形是 pelvis，四足是 body
-    root.location = loc
+    # loc 是骨架空間的位移（x 右、y 前後（角色面向 -y）、z 上下）。
+    # 骨頭的 location 卻是「骨頭自己的座標」：人形的骨盆骨是直立的，它的 y 軸朝上。
+    # 不換算的話，「往下 0.78 公尺」會變成「往後 0.78 公尺」，所以先轉換到骨頭的座標
+    root.location = root.bone.matrix_local.to_3x3().inverted() @ Vector(loc)
     bpy.context.view_layer.update()
 
 
@@ -600,17 +603,89 @@ def zombie_grab_pose(t):
     }, (0, -0.15 * k, -0.04 * k)
 
 
+def ease(t):
+    t = max(0.0, min(1.0, t))
+    return t * t * (3 - 2 * t)
+
+
+def fall_pose(t):
+    """倒地（往前撲倒）：膝蓋先軟掉，再整個人往前倒，最後趴在地上。t = 0..1，最後一格就是「死了」的樣子。
+
+    做法：整個身體以骨盆為中心往前轉將近 90°，同時把骨盆降到離地 15 公分。
+    """
+    buckle = ease(t * 2.5)                 # 前 40%：膝蓋彎下去
+    k = ease((t - 0.2) / 0.8)              # 之後：往前倒
+    return {
+        "pelvis": (86 * k, 0, 0), "spine": (12 * buckle - 8 * k, 0, 0), "head": (-30 * k, 0, 14 * k),
+        "thigh.L": (-30 * buckle * (1 - k), 0, 0), "shin.L": (50 * buckle * (1 - k) + 8 * k, 0, 0),
+        "thigh.R": (-24 * buckle * (1 - k), 0, 4 * k), "shin.R": (40 * buckle * (1 - k) + 14 * k, 0, 0),
+        "upperarm.L": (-140 * k, 0, 18 * k), "upperarm.R": (-120 * k, 0, -30 * k),
+        "forearm.L": (-20 * k, 0, 0), "forearm.R": (-40 * k, 0, 0),
+    }, (0, 0, -0.25 * buckle * (1 - k) - 0.78 * k)
+
+
+def zombie_hurt_pose(t=0.0):
+    """殭屍中彈：上身被打得往後仰、頭甩到一邊、手臂往兩旁張開。"""
+    return {
+        "pelvis": (-4, 0, 0), "spine": (-14, 0, 6), "head": (-28, 10, 16),
+        "upperarm.L": (-30, 0, 24), "upperarm.R": (-22, 0, -26),
+        "forearm.L": (-18, 0, 0), "forearm.R": (-12, 0, 0),
+        "thigh.L": (-10, 0, 0), "shin.L": (14, 0, 0),
+    }, (0, 0.05, -0.01)
+
+
+def feed_pose(t):
+    """跪在地上啃食：跪姿、身體壓低、頭往下一點一點的（序章第一隻殭屍）。"""
+    nod = math.sin(t * 2 * math.pi)
+    return {
+        "pelvis": (16, 0, 0), "spine": (38 + 4 * nod, 0, 0), "head": (24 + 10 * nod, 0, 0),
+        "thigh.L": (-78, 0, 0), "shin.L": (100, 0, 0), "thigh.R": (-22, 0, 0), "shin.R": (112, 0, 0),
+        "upperarm.L": (-62, 0, 10), "upperarm.R": (-58, 0, -10),
+        "forearm.L": (-50 - 6 * nod, 0, 0), "forearm.R": (-46 + 6 * nod, 0, 0),
+    }, (0, -0.08, -0.46)
+
+
+def shoot_pose(t):
+    """開槍：瞄準姿勢＋後座力（第 0 格槍口往上跳，第 1 格回來）。"""
+    ang, loc = aim_pose()
+    kick = 1.0 if t < 0.5 else 0.3
+    ang = dict(ang)
+    ang["upperarm.R"] = (-82 - 14 * kick, 0, 18)
+    ang["upperarm.L"] = (-78 - 12 * kick, 0, -28)
+    ang["head"] = (-4 * kick, 0, -6)
+    return ang, loc
+
+
+def limp_pose(t):
+    """危急時的走路：一隻手按著腹部、身體縮著、步伐小而拖。"""
+    ang, loc = walk_pose(t)
+    ph = t * 2 * math.pi
+    ang = dict(ang)
+    ang["spine"] = (18, 0, 6 - 3 * math.sin(ph))
+    ang["upperarm.R"] = (-20, 0, -22)
+    ang["forearm.R"] = (-95, 0, 0)
+    ang["thigh.R"] = (ang["thigh.R"][0] * 0.5, 0, 0)
+    ang["shin.R"] = (ang["shin.R"][0] * 0.4 + 6, 0, 0)
+    return ang, (loc[0], loc[1], loc[2] - 0.03)
+
+
 HUMAN_ANIMS = {
     "idle": (idle_pose, 1),
     "walk": (walk_pose, 8),
     "run": (run_pose, 6),
     "aim": (aim_pose, 1),
     "hurt": (hurt_pose, 1),
+    "shoot": (shoot_pose, 2),
+    "limp": (limp_pose, 8),
+    "down": (fall_pose, 6),
 }
 ZOMBIE_ANIMS = {
     "idle": (zombie_idle_pose, 2),
     "walk": (shamble_pose, 8),
     "grab": (zombie_grab_pose, 4),
+    "hurt": (zombie_hurt_pose, 1),
+    "down": (fall_pose, 6),
+    "feed": (feed_pose, 2),
 }
 
 # ---------------- 頭目用的動作
@@ -716,7 +791,7 @@ def setup_sprite_render():
 
 
 def place_sprite_cam(cam, direction, elevation=18):
-    """direction 0..7：角色面向哪個方向（0 = 面向鏡頭，2 = 面向右）。
+    """direction 0..7：角色面向哪個方向（0 = 面向鏡頭，2 = 面向畫面左邊，4 = 背對鏡頭，6 = 面向畫面右邊）。
 
     做法：轉攝影機而不是轉角色。elevation 是俯角（固定視角大多從上往下看）。
     """
@@ -775,7 +850,7 @@ def render_sprites(name, rig, out_dir, dirs=range(8), anims=ANIMS):
         # 腳底在 sprite 裡的位置（引擎把這個點放到角色在地面上的投影位置）
         "pivot": [SPRITE_W // 2, round(SPRITE_H / 2 + CENTER_Z * math.cos(math.radians(18)) * PIX_PER_M)],
         "pixels_per_meter": PIX_PER_M,
-        "directions": "0 = facing camera, then clockwise in 45 deg steps (2 = facing screen right)",
+        "directions": "0 = facing camera, 2 = facing screen left, 4 = facing away, 6 = facing screen right",
         "rows": [{"anim": an, "dir": d, "frames": anims[an][1]} for (an, d) in rows],
     }
     with open(os.path.join(out_dir, f"{name}_sheet.json"), "w") as f:
@@ -804,7 +879,9 @@ def main():
     rig.scale = (sc, sc, sc)
     bpy.context.view_layer.update()
     global SPRITE_W, SPRITE_H, CENTER_Z
-    SPRITE_W, SPRITE_H = getattr(mod, "FRAME", (64, 128))      # 角色可以指定自己的 sprite 畫布
+    # 角色可以指定自己的 sprite 畫布。人形預設 144 × 160：倒在地上的身體（約 1.8 公尺、往鏡頭這邊倒）才放得下；
+    # 匯出資源包時會裁掉透明的邊，畫布大一點不佔空間
+    SPRITE_W, SPRITE_H = getattr(mod, "FRAME", (144, 160))
     CENTER_Z = getattr(mod, "CENTER_Z", 0.91)
     anims = getattr(mod, "ANIMS", "human")
     if isinstance(anims, str):
