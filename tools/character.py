@@ -34,13 +34,28 @@ SEG = 8   # 每個斷面環的邊數（PS1 等級）
 # 角色貼圖（小張、低色數）
 # ======================================================================
 
-def char_texture(name, base, noise=0.08, size=32, seed=0, stripes=None):
-    """角色用的小貼圖：底色＋一點雜訊（布料、皮革的質感）。"""
+def char_texture(name, base, noise=0.08, size=32, seed=0, stripes=None, blood=0.0, tears=0.0, rot=0.0):
+    """角色用的小貼圖：底色＋一點雜訊（布料、皮革的質感）。
+
+    blood：血跡的面積比例（暗紅色斑塊）；tears：破洞（更深的顏色）；
+    rot：腐爛的斑（偏綠灰），殭屍的皮膚用。
+    """
     r = np.random.default_rng(seed)
     c = np.array([int(base[i:i + 2], 16) for i in (1, 3, 5)], float)
     n = r.random((size, size))
     n = (n + np.roll(n, 1, 0) + np.roll(n, 1, 1)) / 3
     arr = c[None, None, :] * (1 - noise + 2 * noise * n[..., None])
+    def blotches(frac, color, mix):
+        if frac <= 0:
+            return
+        low = r.random((size // 4, size // 4))
+        big = np.asarray(Image.fromarray((low * 255).astype(np.uint8)).resize((size, size), Image.BILINEAR)) / 255.0
+        m = (big > 1 - frac)[..., None]
+        cc = np.array(color, float)
+        arr[:] = np.where(m, arr * (1 - mix) + cc * mix, arr)
+    blotches(rot, (70, 80, 62), 0.45)
+    blotches(blood, (58, 8, 6), 0.75)
+    blotches(tears, (10, 8, 8), 0.8)
     if stripes:
         for (v0, v1, col) in stripes:     # 水平色帶（例如背心上的字樣條）
             cc = np.array([int(col[i:i + 2], 16) for i in (1, 3, 5)], float)
@@ -51,7 +66,7 @@ def char_texture(name, base, noise=0.08, size=32, seed=0, stripes=None):
     return path
 
 
-def face_texture(path, skin, brow, eye, lip, stubble=None, size=64):
+def face_texture(path, skin, brow, eye, lip, stubble=None, size=64, zombie=False):
     """臉：膚色底＋眉、眼、鼻影、嘴。PS1 角色的五官就是畫在貼圖上的。
 
     座標：u 0..1 = 臉的左到右，v 0..1 = 下巴到頭頂（貼圖的上方是頭頂）。
@@ -83,6 +98,14 @@ def face_texture(path, skin, brow, eye, lip, stubble=None, size=64):
     rect(0.47, 0.36, 0.53, 0.5, "#000000", 0.12)
     rect(0.44, 0.34, 0.56, 0.37, "#000000", 0.18)
     rect(0.40, 0.24, 0.60, 0.27, lip)
+    if zombie:
+        # 凹陷的眼窩、混濁的眼白、嘴邊的血
+        rect(0.24, 0.46, 0.46, 0.6, "#1a1612", 0.55)
+        rect(0.54, 0.46, 0.76, 0.6, "#1a1612", 0.55)
+        rect(0.31, 0.52, 0.40, 0.56, "#b8b8a0", 0.9)
+        rect(0.60, 0.52, 0.69, 0.56, "#b8b8a0", 0.9)
+        rect(0.38, 0.12, 0.64, 0.28, "#4a0a08", 0.6)
+        rect(0.42, 0.22, 0.58, 0.27, "#120806", 0.9)
     Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).save(path)
     return path
 
@@ -233,7 +256,8 @@ for s in ("L", "R"):
     ]
 
 
-def make_armature(name="rig"):
+def make_armature(name="rig", joints=None):
+    joints = joints or J
     ad = bpy.data.armatures.new(name)
     ob = bpy.data.objects.new(name, ad)
     bpy.context.scene.collection.objects.link(ob)
@@ -241,8 +265,8 @@ def make_armature(name="rig"):
     bpy.ops.object.mode_set(mode="EDIT")
     for (bn, h, t, parent) in BONES:
         b = ad.edit_bones.new(bn)
-        b.head = J[h]
-        b.tail = J[t]
+        b.head = joints[h]
+        b.tail = joints[t]
         b.roll = 0
         if parent:
             b.parent = ad.edit_bones[parent]
@@ -264,110 +288,46 @@ def attach(part, rig, bone):
 
 
 # ======================================================================
-# 柯爾
+# 共用的身體部位（每個角色檔可以直接用，也可以自己寫）
 # ======================================================================
 
-def build_cole():
-    tex = {}
-    tex["shirt"] = char_texture("cole_shirt", "#8a7a58", 0.10, seed=1)          # 卡其色制服襯衫
-    tex["vest"] = char_texture("cole_vest", "#1a1c1e", 0.12, seed=2)
-    tex["patch"] = char_texture("cole_patch", "#b8a038", 0.06, seed=10)          # SHERIFF 字樣（遠看是一條黃色）
-    tex["vest_plain"] = char_texture("cole_vest_plain", "#1a1c1e", 0.12, seed=3)
-    tex["pants"] = char_texture("cole_pants", "#2e3426", 0.10, seed=4)          # 深橄欖色長褲
-    tex["boots"] = char_texture("cole_boots", "#141210", 0.10, seed=5)
-    tex["belt"] = char_texture("cole_belt", "#0e0e0e", 0.08, seed=6)
-    tex["skin"] = char_texture("cole_skin", "#c49274", 0.05, seed=7)
-    tex["hair"] = char_texture("cole_hair", "#2a1c14", 0.15, seed=8)
-    tex["glove"] = char_texture("cole_glove", "#121212", 0.08, seed=9)
-    fpath = os.path.join(ROOT, "build", "chartex", "cole_face.png")
-    face_texture(fpath, "#c49274", "#24180f", "#1a1410", "#8a5a48", stubble="#5a4636")
-    tex["face"] = fpath
+def arms(C, P, M_upper, M_lower, M_hand, joints=None, thick=1.0, bare_lower=None):
+    """兩隻手臂：上臂、前臂、手（含拇指）。thick 調整粗細。"""
+    joints = joints or C.J
+    for s in ("L", "R"):
+        sg = 1 if s == "L" else -1
+        sh, el, wr, he = (joints[f"shoulder.{s}"], joints[f"elbow.{s}"], joints[f"wrist.{s}"], joints[f"hand_end.{s}"])
+        t = thick
+        P(C.loft(f"upperarm.{s}", [(-0.15, 0, 0, 0.068 * t, 0.068 * t), (0.2, 0, 0, 0.065 * t, 0.063 * t), (1.0, 0, 0, 0.05 * t, 0.05 * t)],
+                 M_upper, sh, el), f"upperarm.{s}")
+        P(C.loft(f"forearm.{s}", [(-0.05, 0, 0, 0.05 * t, 0.05 * t), (0.4, 0, 0, 0.048 * t, 0.045 * t), (1.0, 0, 0, 0.034 * t, 0.031 * t)],
+                 bare_lower or M_lower, el, wr), f"forearm.{s}")
+        P(C.loft(f"hand.{s}", [(-0.1, 0, 0, 0.034 * t, 0.021 * t), (0.5, 0, 0, 0.042 * t, 0.023 * t), (1.0, 0, 0, 0.028 * t, 0.017 * t)],
+                 M_hand, wr, he), f"hand.{s}")
+        # 拇指（往前、往內）
+        P(C.block(f"thumb.{s}", (wr[0] - 0.012, wr[1] - 0.045, wr[2] - 0.075), (wr[0] + 0.008, wr[1] - 0.02, wr[2] - 0.03), M_hand), f"hand.{s}")
 
-    M = {k: tex_mat("cole_" + k, v) for k, v in tex.items()}
-    M["gold"] = kit.mat("badge_gold", "brass", metal=0.8, rough=0.35)
-    M["steel"] = kit.mat("gun_steel", color=(0.08, 0.08, 0.09), metal=0.8, rough=0.4)
 
-    rig = make_armature("cole_rig")
-    parts = []
+def legs(C, P, M_thigh, M_shin, M_boot, joints=None, thick=1.0, boot_top=0.6, shoe_h=0.1, toe=-0.17):
+    joints = joints or C.J
+    for s in ("L", "R"):
+        th, kn, an = (joints[f"thigh.{s}"], joints[f"knee.{s}"], joints[f"ankle.{s}"])
+        t = thick
+        P(C.loft(f"thigh.{s}", [(-0.1, 0, 0, 0.088 * t, 0.09 * t), (0.3, 0, 0, 0.085 * t, 0.085 * t), (1.0, 0, 0, 0.06 * t, 0.062 * t)],
+                 M_thigh, th, kn), f"thigh.{s}")
+        P(C.loft(f"shin.{s}", [(-0.05, 0, 0, 0.062 * t, 0.064 * t), (0.3, 0, 0, 0.058 * t, 0.06 * t), (boot_top + 0.02, 0, 0, 0.046 * t, 0.048 * t)],
+                 M_shin, kn, an, cap1=False), f"shin.{s}")
+        P(C.loft(f"boot.{s}", [(boot_top, 0, 0, 0.05 * t, 0.052 * t), (0.85, 0, 0, 0.052 * t, 0.054 * t), (1.06, 0, 0, 0.055 * t, 0.06 * t)],
+                 M_boot, kn, an), f"shin.{s}")
+        x = an[0]
+        P(C.block(f"foot.{s}", (x - 0.046 * t, toe, 0.0), (x + 0.046 * t, 0.05, shoe_h), M_boot), f"foot.{s}")
 
-    def P(ob, bone):
-        parts.append((ob, bone))
 
-    # ---------------- 骨盆：褲子＋勤務腰帶
-    P(loft("pelvis", [(0.0, 0, 0, 0.17, 0.12), (0.5, 0, 0, 0.175, 0.125), (1.0, 0, 0, 0.16, 0.11)],
-           M["pants"], (0, 0, 0.86), (0, 0, 1.06)), "pelvis")
-    P(loft("belt", [(0, 0, 0, 0.185, 0.135), (1, 0, 0, 0.185, 0.135)], M["belt"], (0, 0, 0.98), (0, 0, 1.04)), "pelvis")
-    P(block("buckle", (-0.03, -0.142, 0.985), (0.03, -0.13, 1.035), M["gold"]), "pelvis")
-    for x in (-0.12, 0.08):                     # 腰帶上的小包
-        P(block("pouch", (x, -0.145, 0.95), (x + 0.05, -0.115, 1.03), M["belt"]), "pelvis")
-
-    # ---------------- 軀幹：襯衫＋戰術背心（胸寬、腰窄）
-    torso = [(0.0, 0, 0, 0.165, 0.115), (0.3, 0, -0.005, 0.172, 0.123), (0.7, 0, -0.01, 0.195, 0.133), (0.92, 0, 0, 0.2, 0.12), (1.0, 0, 0, 0.12, 0.08)]
-    P(loft("torso", torso, M["shirt"], (0, 0, 1.03), (0, 0, 1.5)), "spine")
-    vest = [(0.0, 0, 0, 0.178, 0.128), (0.35, 0, -0.005, 0.188, 0.138), (0.75, 0, -0.012, 0.205, 0.146), (0.95, 0, -0.005, 0.17, 0.13)]
-    P(loft("vest", vest, M["vest"], (0, 0, 1.06), (0, 0, 1.45), cap0=False, cap1=False), "spine")
-    # 背心正面的彈匣袋、無線電、警徽
-    for x in (-0.09, -0.03, 0.03):
-        P(block("mag_pouch", (x, -0.165, 1.1), (x + 0.05, -0.13, 1.2), M["vest_plain"]), "spine")
-    P(block("radio", (0.1, -0.16, 1.3), (0.15, -0.12, 1.4), M["vest_plain"]), "spine")
-    P(block("badge", (-0.12, -0.152, 1.32), (-0.07, -0.145, 1.37), M["gold"]), "spine")
-    P(block("back_patch", (-0.13, 0.135, 1.33), (0.13, 0.148, 1.39), M["patch"]), "spine")
-    # 衣領
-    P(loft("collar", [(0, 0, 0, 0.075, 0.07), (1, 0, 0.005, 0.085, 0.078)], M["shirt"], (0, 0, 1.47), (0, 0, 1.53), cap0=False, cap1=False), "spine")
-
-    # ---------------- 頭：脖子、頭、頭髮
-    P(loft("neck", [(0, 0, 0, 0.055, 0.055), (1, 0, 0, 0.05, 0.05)], M["skin"], (0, 0, 1.48), (0, 0, 1.6)), "head")
-    head_r = [(0.0, 0, -0.01, 0.045, 0.05), (0.12, 0, -0.025, 0.07, 0.075), (0.35, 0, -0.01, 0.085, 0.1),
-              (0.6, 0, 0, 0.09, 0.105), (0.85, 0, 0.01, 0.085, 0.1), (1.0, 0, 0.01, 0.05, 0.06)]
-    P(loft("head", head_r, M["face"], (0, -0.01, 1.58), (0, -0.01, 1.83), uv_mode="face",
-           face_box=(-0.085, 0.085, 1.58, 1.80)), "head")
-    # 頭髮：後腦＋頭頂的蓋子，略大於頭；前面留短瀏海，側分
-    # 頭頂的蓋子（從額頭以上）
-    cap = [(0.0, 0, 0.0, 0.094, 0.11), (0.45, 0, -0.003, 0.09, 0.104), (1.0, 0, -0.005, 0.05, 0.062)]
-    P(loft("hair_cap", cap, M["hair"], (0, -0.012, 1.765), (0, -0.012, 1.86), cap0=False), "head")
-    # 後腦的頭髮：只保留後半圈，蓋到後頸
-    back = [(0.0, 0, -0.012, 0.07, 0.08), (0.3, 0, -0.012, 0.09, 0.103), (0.75, 0, -0.008, 0.095, 0.11), (1.0, 0, -0.005, 0.094, 0.11)]
-    P(loft("hair_back", back, M["hair"], (0, -0.01, 1.6), (0, -0.01, 1.77), cap0=False, cap1=False,
-           keep=lambda c: c.y > -0.035), "head")
-    P(block("fringe", (-0.075, -0.118, 1.765), (0.05, -0.088, 1.8), M["hair"]), "head")
-    P(block("fringe_side", (0.05, -0.112, 1.775), (0.085, -0.085, 1.81), M["hair"]), "head")
-    P(block("sideburn.L", (0.082, -0.06, 1.66), (0.095, -0.02, 1.74), M["hair"]), "head")
-    P(block("sideburn.R", (-0.095, -0.06, 1.66), (-0.082, -0.02, 1.74), M["hair"]), "head")
-    P(block("ear.L", (0.088, -0.02, 1.66), (0.1, 0.01, 1.72), M["skin"]), "head")
-    P(block("ear.R", (-0.1, -0.02, 1.66), (-0.088, 0.01, 1.72), M["skin"]), "head")
-
-    # ---------------- 手臂（長袖襯衫、黑色手套）
-    for s, sg in (("L", 1), ("R", -1)):
-        sh, el, wr, he = (J[f"shoulder.{s}"], J[f"elbow.{s}"], J[f"wrist.{s}"], J[f"hand_end.{s}"])
-        P(loft(f"upperarm.{s}", [(-0.15, 0, 0, 0.068, 0.068), (0.2, 0, 0, 0.065, 0.063), (1.0, 0, 0, 0.05, 0.05)],
-               M["shirt"], sh, el), f"upperarm.{s}")
-        P(loft(f"forearm.{s}", [(-0.05, 0, 0, 0.05, 0.05), (0.4, 0, 0, 0.048, 0.045), (1.0, 0, 0, 0.036, 0.033)],
-               M["shirt"], el, wr), f"forearm.{s}")
-        P(loft(f"hand.{s}", [(-0.1, 0, 0, 0.036, 0.022), (0.5, 0, 0, 0.044, 0.024), (1.0, 0, 0, 0.03, 0.018)],
-               M["glove"], wr, he), f"hand.{s}")
-        # 肩上的背心肩帶
-        P(block(f"strap.{s}", (sg * 0.12 - 0.035, -0.12, 1.42), (sg * 0.12 + 0.035, 0.12, 1.47), M["vest_plain"]), "spine")
-
-    # ---------------- 腿（褲子、靴子、右大腿槍套）
-    for s, sg in (("L", 1), ("R", -1)):
-        th, kn, an, to = (J[f"thigh.{s}"], J[f"knee.{s}"], J[f"ankle.{s}"], J[f"toe.{s}"])
-        P(loft(f"thigh.{s}", [(-0.1, 0, 0, 0.088, 0.09), (0.3, 0, 0, 0.085, 0.085), (1.0, 0, 0, 0.06, 0.062)],
-               M["pants"], th, kn), f"thigh.{s}")
-        P(loft(f"shin.{s}", [(-0.05, 0, 0, 0.062, 0.064), (0.3, 0, 0, 0.058, 0.06), (0.62, 0, 0, 0.046, 0.048)],
-               M["pants"], kn, an, cap1=False), f"shin.{s}")
-        P(loft(f"boot.{s}", [(0.6, 0, 0, 0.05, 0.052), (0.85, 0, 0, 0.052, 0.054), (1.06, 0, 0, 0.055, 0.06)],
-               M["boots"], kn, an), f"shin.{s}")
-        x = J[f"ankle.{s}"][0]
-        P(block(f"foot.{s}", (x - 0.048, -0.17, 0.0), (x + 0.048, 0.05, 0.1), M["boots"]), f"foot.{s}")
-    # 槍套（右腿外側）＋配槍
-    P(block("holster", (-0.2, -0.05, 0.68), (-0.155, 0.05, 0.9), M["belt"]), "thigh.R")
-    P(block("holster_strap", (-0.19, -0.07, 0.72), (-0.07, 0.07, 0.75), M["belt"]), "thigh.R")
-    P(block("gun_grip", (-0.195, -0.02, 0.9), (-0.16, 0.035, 0.98), M["steel"]), "thigh.R")
-
+def finish(C, rig, parts):
     for ob, bone in parts:
         for poly in ob.data.polygons:
             poly.use_smooth = False
-        attach(ob, rig, bone)
+        C.attach(ob, rig, bone)
     return rig, [p[0] for p in parts]
 
 
@@ -435,6 +395,90 @@ ANIMS = {
     "walk": (walk_pose, 8),
     "aim": (aim_pose, 1),
 }
+
+def run_pose(t):
+    """跑步：擺幅比走路大、身體前傾、雙腳有騰空期。"""
+    ph = t * 2 * math.pi
+    th_l = -40 * math.sin(ph)
+    th_r = 40 * math.sin(ph)
+    kn_l = 75 * max(0, math.sin(ph + 1.1)) + 10
+    kn_r = 75 * max(0, math.sin(ph + 1.1 + math.pi)) + 10
+    return {
+        "pelvis": (8, 0, 6 * math.sin(ph)),
+        "spine": (12, 0, -8 * math.sin(ph)),
+        "head": (-10, 0, 4 * math.sin(ph)),
+        "thigh.L": (th_l, 0, 0), "thigh.R": (th_r, 0, 0),
+        "shin.L": (kn_l, 0, 0), "shin.R": (kn_r, 0, 0),
+        "foot.L": (-kn_l * 0.25, 0, 0), "foot.R": (-kn_r * 0.25, 0, 0),
+        "upperarm.L": (35 * math.sin(ph), 0, 8), "upperarm.R": (-35 * math.sin(ph), 0, -8),
+        "forearm.L": (-70, 0, 0), "forearm.R": (-70, 0, 0),
+    }, (0, 0, 0.03 * abs(math.sin(ph)) - 0.03)
+
+
+def hurt_pose(t=0.0):
+    """受傷：按著腹部、身體縮起來、腳步不穩。"""
+    return {
+        "pelvis": (-6, 0, 0), "spine": (22, 0, 6), "head": (8, 0, 0),
+        "upperarm.R": (-20, 0, -22), "forearm.R": (-95, 0, 0),
+        "upperarm.L": (8, 0, 10), "forearm.L": (-30, 0, 0),
+        "thigh.L": (-14, 0, 0), "shin.L": (24, 0, 0), "thigh.R": (6, 0, 0), "shin.R": (10, 0, 0),
+    }, (0, 0, -0.04)
+
+
+def shamble_pose(t):
+    """殭屍的拖行：一隻腳拖在後面、身體歪一邊、手臂往前垂。"""
+    ph = t * 2 * math.pi
+    th_l = -18 * math.sin(ph)
+    th_r = 10 * math.sin(ph)                  # 右腳擺幅小：拖著走
+    kn_l = 30 * max(0, math.sin(ph + 0.9)) + 10
+    return {
+        "pelvis": (0, 6, 6 * math.sin(ph)),
+        "spine": (18, -8, -5 * math.sin(ph)),
+        "head": (10, 12, 18),
+        "thigh.L": (th_l, 0, 0), "thigh.R": (th_r, 0, 6),
+        "shin.L": (kn_l, 0, 0), "shin.R": (14, 0, 0),
+        "foot.R": (-20, 0, 0),
+        "upperarm.L": (-55 + 8 * math.sin(ph), 0, 6), "upperarm.R": (-40 - 6 * math.sin(ph), 0, -10),
+        "forearm.L": (-20, 0, 0), "forearm.R": (-35, 0, 0),
+        "hand.L": (20, 0, 0), "hand.R": (25, 0, 0),
+    }, (0, 0, -0.03 + 0.015 * math.sin(ph * 2))
+
+
+def zombie_idle_pose(t=0.0):
+    """殭屍站著：駝背、頭垂到一邊、手臂無力地垂著。"""
+    sway = math.sin(t * 2 * math.pi) * 3
+    return {
+        "pelvis": (0, 4, 0), "spine": (20 + sway, -6, 0), "head": (24, 14, 20),
+        "upperarm.L": (-6, 0, 6), "upperarm.R": (4, 0, -8),
+        "forearm.L": (-14, 0, 0), "forearm.R": (-6, 0, 0),
+        "thigh.R": (4, 0, 4), "shin.R": (10, 0, 0), "thigh.L": (-4, 0, 0), "shin.L": (6, 0, 0),
+    }, (0, 0, -0.02)
+
+
+def zombie_grab_pose(t):
+    """殭屍撲抓：雙手往前伸、身體前傾、頭往前咬。t 0→1 是撲過去的過程。"""
+    k = math.sin(min(1.0, t * 1.3) * math.pi / 2)
+    return {
+        "pelvis": (6 * k, 0, 0), "spine": (14 + 18 * k, 0, 0), "head": (-10 * k, 0, 0),
+        "upperarm.L": (-80 * k - 10, 0, -8), "upperarm.R": (-82 * k - 10, 0, 8),
+        "forearm.L": (-10, 0, 0), "forearm.R": (-10, 0, 0),
+        "thigh.L": (-20 * k, 0, 0), "shin.L": (18 * k, 0, 0), "thigh.R": (14 * k, 0, 0), "shin.R": (10 * k, 0, 0),
+    }, (0, -0.15 * k, -0.04 * k)
+
+
+HUMAN_ANIMS = {
+    "idle": (idle_pose, 1),
+    "walk": (walk_pose, 8),
+    "run": (run_pose, 6),
+    "aim": (aim_pose, 1),
+    "hurt": (hurt_pose, 1),
+}
+ZOMBIE_ANIMS = {
+    "idle": (zombie_idle_pose, 2),
+    "walk": (shamble_pose, 8),
+    "grab": (zombie_grab_pose, 4),
+}
+
 
 
 # ======================================================================
@@ -540,19 +584,42 @@ def render_sprites(name, rig, out_dir, dirs=range(8), anims=ANIMS):
     return frames
 
 
+def load_character(name):
+    import importlib.util
+    path = os.path.join(ROOT, "characters", name + ".py")
+    spec = importlib.util.spec_from_file_location("char_" + name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def main():
+    import types
     name = sys.argv[1] if len(sys.argv) > 1 else "cole"
+    mod = load_character(name)
     kit.reset_scene()
-    rig, parts = build_cole()
+    C = sys.modules[__name__] if __name__ in sys.modules else types.SimpleNamespace(**globals())
+    rig, parts = mod.build(C)
+    # 身高：整副骨架等比例縮放（建模一律用 1.82 m 的骨架）
+    sc = getattr(mod, "HEIGHT", 1.82) / 1.82
+    rig.scale = (sc, sc, sc)
+    bpy.context.view_layer.update()
+    anims = getattr(mod, "ANIMS", "human")
+    if isinstance(anims, str):
+        anims = {"human": HUMAN_ANIMS, "zombie": ZOMBIE_ANIMS}[anims]
     out_dir = os.path.join(ROOT, "art", "characters", name)
-    frames = render_sprites(name, rig, out_dir)
-    # 預覽：轉身圖（idle 8 方向）＋走路 8 格，放大 3 倍
-    prev = Image.new("RGBA", (8 * SPRITE_W, 2 * SPRITE_H), (40, 36, 44, 255))
+    frames = render_sprites(name, rig, out_dir, anims=anims)
+    # 預覽：第一個動作的 8 方向＋每個動作在方向 1 的所有格，放大 3 倍
+    first = next(iter(anims))
+    rows = 1 + len(anims)
+    cols = max(8, max(n for (_f, n) in anims.values()))
+    prev = Image.new("RGBA", (cols * SPRITE_W, rows * SPRITE_H), (40, 36, 44, 255))
     for d in range(8):
-        prev.alpha_composite(frames[("idle", d, 0)], (d * SPRITE_W, 0))
-    for f in range(8):
-        prev.alpha_composite(frames[("walk", 1, f)], (f * SPRITE_W, SPRITE_H))
-    prev = prev.resize((prev.width * 3, prev.height * 3), Image.NEAREST)
+        prev.alpha_composite(frames[(first, d, 0)], (d * SPRITE_W, 0))
+    for r, (an, (_fn, n)) in enumerate(anims.items()):
+        for f in range(n):
+            prev.alpha_composite(frames[(an, 1, f)], (f * SPRITE_W, (r + 1) * SPRITE_H))
+    prev = prev.resize((prev.width * 2, prev.height * 2), Image.NEAREST)
     os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
     prev.save(os.path.join(ROOT, "build", f"{name}_turnaround.png"))
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT, "build", f"{name}.blend"))
@@ -560,4 +627,5 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.modules.setdefault("character", sys.modules[__name__])
     main()

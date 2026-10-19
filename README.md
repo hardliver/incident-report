@@ -23,7 +23,7 @@ pip install bpy numpy pillow     # bpy = Blender 的 Python 模組，不需要�
 python3 tools/psx_textures.py          # 貼圖 → art/textures/
 python3 tools/bake_room.py foyer       # 房間 → build/rooms/foyer/
 python3 tools/bake_room.py --all
-python3 tools/character.py cole        # 角色 sprite → art/characters/cole/
+python3 tools/character.py cole        # 角色 sprite → art/characters/cole/（角色定義在 characters/）
 python3 tools/preview_composite.py     # 把角色放進房間測試遮擋 → build/composite_test.png
 ```
 

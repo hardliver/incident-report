@@ -41,6 +41,8 @@ def build(k):
     k.light("POINT", (2.0, 2.5, 2.5), (1.0, 0.78, 0.5), 35, radius=0.1, name="ceiling_bulb")
 
     return {
+        # 角色 sprite 在這個房間的色調（乘在 sprite 的顏色上）
+        "tint": (1.0, 0.86, 0.68),
         "cameras": [
             {"id": "A", "pos": (3.55, 0.5, 2.4), "target": (1.4, 4.3, 0.8), "fov": 66},
             {"id": "B", "pos": (0.35, 4.7, 2.4), "target": (2.6, 1.0, 0.6), "fov": 70},

@@ -91,6 +91,46 @@
    "frames": 8
   },
   {
+   "anim": "run",
+   "dir": 0,
+   "frames": 6
+  },
+  {
+   "anim": "run",
+   "dir": 1,
+   "frames": 6
+  },
+  {
+   "anim": "run",
+   "dir": 2,
+   "frames": 6
+  },
+  {
+   "anim": "run",
+   "dir": 3,
+   "frames": 6
+  },
+  {
+   "anim": "run",
+   "dir": 4,
+   "frames": 6
+  },
+  {
+   "anim": "run",
+   "dir": 5,
+   "frames": 6
+  },
+  {
+   "anim": "run",
+   "dir": 6,
+   "frames": 6
+  },
+  {
+   "anim": "run",
+   "dir": 7,
+   "frames": 6
+  },
+  {
    "anim": "aim",
    "dir": 0,
    "frames": 1
@@ -127,6 +167,46 @@
   },
   {
    "anim": "aim",
+   "dir": 7,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 0,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 1,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 2,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 3,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 4,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 5,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
+   "dir": 6,
+   "frames": 1
+  },
+  {
+   "anim": "hurt",
    "dir": 7,
    "frames": 1
   }

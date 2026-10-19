@@ -14,6 +14,7 @@
       zones:   [{camera, poly: [(x, y), ...]}] 玩家站在這個區域時用哪個機位
       doors:   [{id, poly, to, spawn}]         門：走進 poly 就換到房間 to
       spawn:   {x, y, yaw}                     預設出生點
+      tint:    (r, g, b)                       角色 sprite 在這個房間的色調
 
 輸出（進 repo）：art/rooms/<房間>/
   <機位>_bg.png      320×240，256 色索引（每張自己的調色盤）
@@ -181,6 +182,7 @@ def bake(name, fast=False):
         "id": name,
         "coords": "x right, y forward, z up, meters; floor z = 0",
         "resolution": [W, H],
+        "tint": list(data.get("tint", (1.0, 1.0, 1.0))),
         "cameras": cams_json,
         "walk": [[list(p) for p in poly] for poly in data.get("walk", [])],
         "blocks": [[list(p) for p in poly] for poly in data.get("blocks", [])],

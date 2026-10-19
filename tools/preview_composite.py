@@ -54,12 +54,13 @@ def get_frame(sheet, meta, anim, d, f=0):
     return sheet.crop((f * fw, row * fh, (f + 1) * fw, (row + 1) * fh))
 
 
-def place(bg, depth, cam, sprite_rgba, meta, x, y):
+def place(bg, depth, cam, sprite_rgba, meta, x, y, tint=(1, 1, 1)):
     sx, sy, z, f = project(cam, (x, y, 0.0))
     scale = f / (z * meta["pixels_per_meter"])
     w = max(1, round(sprite_rgba.width * scale))
     h = max(1, round(sprite_rgba.height * scale))
-    sp = np.asarray(sprite_rgba.resize((w, h), Image.NEAREST))
+    sp = np.asarray(sprite_rgba.resize((w, h), Image.NEAREST)).astype(float)
+    sp[..., :3] = np.clip(sp[..., :3] * np.array(tint), 0, 255)       # 依房間燈光調色
     px, py = meta["pivot"]
     ox = round(sx - px * scale)
     oy = round(sy - py * scale)
@@ -78,32 +79,46 @@ def place(bg, depth, cam, sprite_rgba, meta, x, y):
             if dpt and dpt < char_cm:       # 前景比角色近 → 擋住
                 hidden += 1
                 continue
-            out[yy, xx] = sp[j, i, :3]
+            out[yy, xx] = sp[j, i, :3].astype(np.uint8)
     return hidden
 
 
-def main():
-    char = os.path.join(ROOT, "art", "characters", "cole")
-    sheet = Image.open(os.path.join(char, "cole_sheet.png")).convert("RGBA")
-    with open(os.path.join(char, "cole_sheet.json")) as f:
+def load_char(name):
+    d = os.path.join(ROOT, "art", "characters", name)
+    sheet = Image.open(os.path.join(d, f"{name}_sheet.png")).convert("RGBA")
+    with open(os.path.join(d, f"{name}_sheet.json")) as f:
         meta = json.load(f)
+    return sheet, meta
+
+
+def main():
+    chars = {}
     shots = [
-        # (房間, 機位, x, y, 角色面向, 動作, 格)
-        ("foyer", "entrance", -0.3, 8.2, 200, "walk", 2),
-        ("foyer", "honor", -3.75, 8.9, 200, "walk", 5),      # 走到柱子後面：一部分被擋住
-        ("foyer", "balcony", -1.0, 6.0, 100, "aim", 0),
-        ("save_room", "A", 1.6, 3.3, 180, "idle", 0),
+        # 房間, 機位, [(角色, x, y, 面向, 動作, 格)]   畫的順序：遠的先畫
+        ("foyer", "entrance", [("zombie_guest", -1.0, 11.0, 180, "walk", 3),
+                               ("zombie_maid", 1.8, 9.6, 210, "idle", 0),
+                               ("cole", 0.2, 7.0, 20, "aim", 0)]),
+        ("foyer", "honor", [("cole", -3.75, 8.9, 200, "walk", 5)]),        # 走到柱子後面：一部分被擋住
+        ("foyer", "balcony", [("zombie_guest", -1.6, 4.6, 70, "grab", 2),
+                              ("nora", -0.4, 4.2, 250, "hurt", 0)]),
+        ("save_room", "A", [("nora", 2.3, 2.9, 200, "idle", 0),
+                            ("cole", 1.4, 3.4, 170, "idle", 0)]),
     ]
     tiles = []
-    for (room, cid, x, y, yaw, anim, fr) in shots:
+    for (room, cid, cast) in shots:
         d, rj = load_room(room)
         cam = next(c for c in rj["cameras"] if c["id"] == cid)
         bg = np.asarray(Image.open(os.path.join(d, cam["bg"])).convert("RGB")).copy()
         depth = np.asarray(Image.open(os.path.join(d, cam["depth"]))).astype(np.int32)
-        dr = sprite_dir(cam, yaw)
-        frame = get_frame(sheet, meta, anim, dr, fr)
-        hidden = place(bg, depth, cam, frame, meta, x, y)
-        print(f"{room}/{cid}: dir {dr}, hidden px {hidden}")
+        # 遠的先畫（簡單的畫家演算法；角色之間的前後由畫的順序決定）
+        cast = sorted(cast, key=lambda c: -project(cam, (c[1], c[2], 0))[2])
+        for (name, x, y, yaw, anim, fr) in cast:
+            if name not in chars:
+                chars[name] = load_char(name)
+            sheet, meta = chars[name]
+            frame = get_frame(sheet, meta, anim, sprite_dir(cam, yaw), fr)
+            hidden = place(bg, depth, cam, frame, meta, x, y, rj.get("tint", (1, 1, 1)))
+            print(f"{room}/{cid}: {name} hidden px {hidden}")
         tiles.append(Image.fromarray(bg).resize((W * 2, H * 2), Image.NEAREST))
     out = Image.new("RGB", (W * 4, H * 4))
     for i, t in enumerate(tiles):
