@@ -213,7 +213,8 @@ def room_shell(k, x0, y0, x1, y1, h, floor, wall, ceiling, wainscot=None, wainsc
     牆是有厚度的盒子，PSX 遊戲也常這樣做，避免光線從縫隙漏進來。
     """
     t = thickness
-    k.box((x0, y0, -t), (x1, y1, 0), floor, name="floor")
+    if floor is not None:          # floor=None：自己鋪地板（例如泳池要在地上挖洞）
+        k.box((x0, y0, -t), (x1, y1, 0), floor, name="floor")
     k.box((x0, y0, h), (x1, y1, h + t), ceiling, name="ceiling")
     walls = {
         "S": ((x0, y0 - t, 0), (x1, y0, h)),
@@ -962,3 +963,250 @@ def corridor(k, x0, y0, x1, y1, h, wall_tex="wallpaper_damask_green", floor_tex=
         else:
             cx = (x0 + x1) / 2
             rug(k, cx - 0.6, y0 + 0.2, cx + 0.6, y1 - 0.2, runner)
+
+
+# ======================================================================
+# 第四批道具：健身房、更衣室、泳池、機房、客房（2026-10-19）
+# ======================================================================
+
+def weight_plate(k, x, y, z, r=0.22, axis="x"):
+    iron = mat("plate_iron", color=(0.04, 0.04, 0.045), metal=0.6, rough=0.5)
+    R = Matrix.Rotation(math.radians(90), 4, "Y") if axis == "x" else Matrix.Rotation(math.radians(90), 4, "X")
+    k.cyl((0, 0, -0.025), r, 0.05, iron, seg=10, uv=0.3, M=Matrix.Translation((x, y, z)) @ R, name="plate")
+
+
+def bench_press(k, x, y, yaw=0, loaded=(0.22, 0.22), occluder=True):
+    """臥推椅＋槓鈴架＋槓鈴（P6：槓片要左右對稱）。loaded = 左右兩邊的槓片半徑（0 = 沒裝）。"""
+    M = T(x, y, 0, yaw)
+    steel = mat("metal_steel", "metal_steel", metal=0.7, rough=0.4)
+    pad = mat("leather_black", color=(0.04, 0.04, 0.045), rough=0.6)
+    k.box((-0.15, -0.6, 0.42), (0.15, 0.6, 0.5), pad, M=M, occluder=occluder, name="bench_pad")
+    for sy in (-0.5, 0.5):
+        k.box((-0.04, sy - 0.04, 0), (0.04, sy + 0.04, 0.42), steel, M=M, name="bench_leg")
+    for sx in (-0.5, 0.5):
+        k.box((sx - 0.03, 0.45, 0), (sx + 0.03, 0.51, 1.15), steel, M=M, occluder=occluder, name="rack_post")
+    p = M @ Vector((0, 0.48, 1.12))
+    k.box((p.x - 1.0, p.y - 0.015, p.z - 0.015), (p.x + 1.0, p.y + 0.015, p.z + 0.015), mat("chrome", color=(0.6, 0.6, 0.6), metal=0.9, rough=0.3), name="barbell")
+    for side, r in zip((-1, 1), loaded):
+        if r > 0:
+            weight_plate(k, p.x + side * 0.8, p.y, p.z, r)
+
+
+def dumbbell_rack(k, x, y, yaw=0, occluder=True):
+    M = T(x, y, 0, yaw)
+    steel = mat("metal_steel", "metal_steel", metal=0.7, rough=0.4)
+    iron = mat("plate_iron", color=(0.04, 0.04, 0.045), metal=0.6, rough=0.5)
+    k.box((-0.9, -0.25, 0.0), (0.9, 0.25, 0.08), steel, M=M, occluder=occluder, name="dbr_base")
+    for z, yy in ((0.45, -0.1), (0.75, 0.1)):
+        k.box((-0.9, yy - 0.12, z - 0.03), (0.9, yy + 0.12, z), steel, M=M, occluder=occluder, name="dbr_tier")
+        for i in range(6):
+            cx = -0.75 + i * 0.3
+            if (i + int(z * 10)) % 5 == 0:
+                continue        # 有幾個不見了（被拿去當武器）
+            for sx in (-0.09, 0.09):
+                Mp = M @ Matrix.Translation((cx + sx, yy, z + 0.06)) @ Matrix.Rotation(math.radians(90), 4, "Y")
+                k.cyl((0, 0, -0.02), 0.06, 0.04, iron, seg=6, uv=0.2, M=Mp, name="db_head")
+    for sx in (-0.88, 0.85):
+        k.box((sx, -0.25, 0), (sx + 0.03, 0.25, 0.8), steel, M=M, occluder=occluder, name="dbr_side")
+
+
+def cable_machine(k, x, y, yaw=0, occluder=True):
+    """滑輪機（B2：把冠軍引到下面，放下配重片）。"""
+    M = T(x, y, 0, yaw)
+    steel = mat("metal_steel", "metal_steel", metal=0.7, rough=0.4)
+    iron = mat("plate_iron", color=(0.04, 0.04, 0.045), metal=0.6, rough=0.5)
+    for sx in (-0.6, 0.6):
+        k.box((sx - 0.05, -0.05, 0), (sx + 0.05, 0.05, 2.4), steel, M=M, occluder=occluder, name="cm_post")
+    k.box((-0.65, -0.06, 2.35), (0.65, 0.06, 2.45), steel, M=M, occluder=occluder, name="cm_top")
+    k.box((-0.15, -0.12, 1.4), (0.15, 0.12, 2.2), iron, M=M, occluder=occluder, name="cm_stack")      # 吊在上面的配重片
+    k.box((-0.004, -0.004, 0.3), (0.004, 0.004, 1.4), mat("cable", color=(0.1, 0.1, 0.1)), M=M, name="cm_cable")
+    k.box((-0.2, -0.3, 0), (0.2, 0.3, 0.08), steel, M=M, name="cm_base")
+
+
+def treadmill(k, x, y, yaw=0, occluder=True):
+    M = T(x, y, 0, yaw)
+    black = mat("plastic_black", color=(0.04, 0.04, 0.045), rough=0.5)
+    k.box((-0.4, -0.9, 0.0), (0.4, 0.9, 0.22), black, M=M, occluder=occluder, name="tm_deck")
+    k.box((-0.35, -0.85, 0.22), (0.35, 0.8, 0.23), mat("belt", color=(0.02, 0.02, 0.02), rough=0.8), M=M, name="tm_belt")
+    for sx in (-0.38, 0.38):
+        k.box((sx - 0.03, -0.85, 0.22), (sx + 0.03, -0.75, 1.3), mat("metal_steel", "metal_steel", metal=0.7), M=M, occluder=occluder, name="tm_post")
+    k.box((-0.4, -0.95, 1.2), (0.4, -0.75, 1.4), black, M=M, occluder=occluder, name="tm_console")
+    k.box((-0.15, -0.76, 1.28), (0.15, -0.755, 1.36), mat("tm_screen", color=(0.1, 0.4, 0.15), emit=2.0), M=M, name="tm_screen")
+
+
+def mirror_wall(k, x0, x1, y, z0=0.3, z1=2.4, cracked=True):
+    """整面鏡子（朝 +y）。裂開的地方用暗色的線。"""
+    m = mat("mirror", color=(0.75, 0.78, 0.8), metal=1.0, rough=0.05)
+    k.box((x0, y, z0), (x1, y + 0.02, z1), m, name="mirror")
+    if cracked:
+        dark = mat("crack", color=(0.02, 0.02, 0.02))
+        cx, cz = (x0 + x1) / 2 + 0.6, (z0 + z1) / 2
+        for a in (0.3, 1.2, 2.0, 2.9, 4.0, 5.1):
+            L = 0.8
+            Mc = Matrix.Translation((cx, y + 0.021, cz)) @ Matrix.Rotation(a, 4, "Y")
+            k.box((0, 0, -0.008), (L, 0.002, 0.008), dark, M=Mc, name="crack")
+
+
+def lockers(k, x, y, yaw=0, n=6, h=1.9, open_idx=(), occluder=True):
+    """一排鐵櫃（朝 +y）。open_idx：門打開的那幾個。"""
+    M = T(x, y, 0, yaw)
+    paint = mat("locker_green", "locker_green", metal=0.3, rough=0.5)
+    w = 0.38
+    W = n * w
+    k.box((-W / 2, -0.45, 0.1), (W / 2, 0.0, h), paint, uv=0.5, M=M, occluder=occluder, name="locker_body")
+    k.box((-W / 2, -0.45, 0), (W / 2, -0.02, 0.1), mat("dark", color=(0.03, 0.02, 0.015)), M=M, name="locker_base")
+    for i in range(n):
+        cx = -W / 2 + (i + 0.5) * w
+        if i in open_idx:
+            k.box((cx - w / 2 + 0.02, -0.4, 0.12), (cx + w / 2 - 0.02, 0.0, h - 0.02), mat("locker_inside", color=(0.02, 0.02, 0.02)), M=M, name="locker_open")
+            Md = M @ Matrix.Translation((cx - w / 2 + 0.02, 0.0, 0)) @ Matrix.Rotation(math.radians(-100), 4, "Z") @ Matrix.Translation((-(cx - w / 2 + 0.02), 0, 0))
+            k.box((cx - w / 2 + 0.02, 0.0, 0.12), (cx + w / 2 - 0.02, 0.02, h - 0.02), paint, uv=0.5, M=Md, name="locker_door")
+        else:
+            k.box((cx - w / 2 + 0.02, 0.0, 0.12), (cx + w / 2 - 0.02, 0.012, h - 0.02), paint, uv=0.5, M=M, name="locker_door")
+            k.box((cx + w / 2 - 0.08, 0.012, 1.0), (cx + w / 2 - 0.05, 0.03, 1.12), mat("chrome", color=(0.6, 0.6, 0.6), metal=0.9, rough=0.3), M=M, name="locker_handle")
+
+
+def bench(k, x, y, yaw=0, L=1.8, occluder=True):
+    M = T(x, y, 0, yaw)
+    wood = mat("wood_crate", "wood_crate")
+    k.box((-L / 2, -0.18, 0.42), (L / 2, 0.18, 0.47), wood, uv=0.6, M=M, occluder=occluder, name="bench_top")
+    for sx in (-L / 2 + 0.1, L / 2 - 0.1):
+        k.box((sx - 0.03, -0.15, 0), (sx + 0.03, 0.15, 0.42), mat("metal_steel", "metal_steel", metal=0.6), M=M, name="bench_leg")
+
+
+def pool_basin(k, x0, y0, x1, y1, depth=1.8, drained=True):
+    """泳池：地面上挖下去的池子（池壁、池底都是藍磁磚）。drained = 水已經抽乾。"""
+    tile = mat("pool_tile", "pool_tile")
+    k.box((x0, y0, -depth - 0.1), (x1, y1, -depth), tile, uv=2, name="pool_floor")
+    t = 0.1
+    k.box((x0 - t, y0, -depth), (x0, y1, 0), tile, uv=2, name="pool_wall")
+    k.box((x1, y0, -depth), (x1 + t, y1, 0), tile, uv=2, name="pool_wall")
+    k.box((x0 - t, y0 - t, -depth), (x1 + t, y0, 0), tile, uv=2, name="pool_wall")
+    k.box((x0 - t, y1, -depth), (x1 + t, y1 + t, 0), tile, uv=2, name="pool_wall")
+    # 池邊的白色石材
+    edge = mat("pool_edge", color=(0.55, 0.53, 0.48), rough=0.6)
+    for (a, b, c, d) in ((x0 - 0.35, y0 - 0.35, x1 + 0.35, y0 - t), (x0 - 0.35, y1 + t, x1 + 0.35, y1 + 0.35),
+                         (x0 - 0.35, y0 - t, x0 - t, y1 + t), (x1 + t, y0 - t, x1 + 0.35, y1 + t)):
+        k.box((a, b, -0.02), (c, d, 0.03), edge, uv=1, name="pool_edge")
+    if drained:
+        # 池底殘留的污水、排水口
+        k.box((x0 + 0.3, y0 + 0.3, -depth), (x1 - 0.3, y0 + 2.0, -depth + 0.01), mat("sludge", color=(0.06, 0.08, 0.05), rough=0.2), name="sludge")
+        k.cyl(((x0 + x1) / 2, y1 - 1.0, -depth), 0.25, 0.012, mat("drain", color=(0.02, 0.02, 0.02), metal=0.6), seg=8, name="drain")
+    else:
+        k.box((x0, y0, -0.35), (x1, y1, -0.3), mat("water", color=(0.04, 0.12, 0.14), rough=0.05, metal=0.2), name="water")
+
+
+def pool_ladder(k, x, y, depth=1.6, yaw=0):
+    M = T(x, y, 0, yaw)
+    chrome = mat("chrome", color=(0.6, 0.6, 0.6), metal=0.9, rough=0.3)
+    for sx in (-0.25, 0.25):
+        k.box((sx - 0.02, -0.02, -depth), (sx + 0.02, 0.02, 0.9), chrome, M=M, name="ladder_rail")
+        k.box((sx - 0.02, -0.3, 0.88), (sx + 0.02, 0.0, 0.92), chrome, M=M, name="ladder_top")
+    for i in range(5):
+        z = -depth + 0.3 + i * 0.3
+        k.box((-0.25, -0.05, z), (0.25, 0.05, z + 0.03), chrome, M=M, name="ladder_step")
+
+
+def teddy_bear(k, x, y, z, yaw=0):
+    """粉紅色的泰迪熊（少了一隻眼睛）。原創造型：圓胖、短手腳、一邊耳朵被扯掉一半。"""
+    M = T(x, y, z, yaw) @ Matrix.Rotation(math.radians(70), 4, "X")      # 躺著
+    pink = mat("bear_pink", color=(0.62, 0.32, 0.38), rough=0.9)
+    burnt = mat("bear_burnt", color=(0.18, 0.08, 0.08), rough=0.9)
+    k.cyl((0, 0, 0), 0.16, 0.3, pink, seg=8, uv=0.3, r_top=0.13, M=M, name="bear_body")
+    k.cyl((0, 0, 0.3), 0.12, 0.2, pink, seg=8, uv=0.3, r_top=0.08, M=M, name="bear_head")
+    k.cyl((0, -0.1, 0.36), 0.05, 0.05, pink, seg=6, uv=0.2, M=M @ Matrix.Rotation(math.radians(-90), 4, "X") @ Matrix.Translation((0, -0.36, -0.1)), name="bear_snout")
+    k.box((-0.13, -0.03, 0.46), (-0.07, 0.03, 0.52), pink, M=M, name="bear_ear")
+    k.box((0.07, -0.03, 0.46), (0.1, 0.03, 0.49), burnt, M=M, name="bear_ear_torn")
+    k.box((-0.07, -0.12, 0.4), (-0.04, -0.11, 0.43), mat("black", color=(0.02, 0.02, 0.02)), M=M, name="bear_eye")
+    for sx in (-0.15, 0.15):
+        k.cyl((sx, 0, 0.05), 0.05, 0.14, pink, seg=6, uv=0.2, M=M, name="bear_leg")
+    k.box((-0.1, -0.15, 0.05), (0.05, -0.13, 0.2), burnt, M=M, name="bear_burn")
+
+
+def deck_chair(k, x, y, yaw=0, occluder=False):
+    M = T(x, y, 0, yaw)
+    white = mat("plastic_white", color=(0.55, 0.53, 0.5), rough=0.5)
+    k.box((-0.32, -0.9, 0.3), (0.32, 0.4, 0.35), white, M=M, occluder=occluder, name="dc_seat")
+    k.box((-0.32, 0.4, 0.3), (0.32, 0.45, 0.95), white, M=M @ Matrix.Translation((0, 0.4, 0.3)) @ Matrix.Rotation(math.radians(-35), 4, "X") @ Matrix.Translation((0, -0.4, -0.3)), occluder=occluder, name="dc_back")
+    for sx in (-0.28, 0.28):
+        for sy in (-0.85, 0.35):
+            k.box((sx - 0.02, sy - 0.02, 0), (sx + 0.02, sy + 0.02, 0.3), white, M=M, name="dc_leg")
+
+
+def pipes_valves(k, x0, x1, y, z, colors=("#a01a14", "#1a50a0", "#c8a018", "#2a8a3a"), occluder=False):
+    """機房牆上的水管：四條不同顏色的水管＋閥門把手（P7：依顏色與順序開關）。朝 +y。"""
+    def c(h):
+        return tuple(int(h[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    for i, col in enumerate(colors):
+        zz = z + i * 0.35
+        m = mat(f"pipe{i}", color=c(col), metal=0.5, rough=0.45)
+        k.box((x0, y, zz), (x1, y + 0.12, zz + 0.12), m, occluder=occluder, name="pipe")
+        vx = x0 + (x1 - x0) * (0.25 + 0.15 * i)
+        k.box((vx - 0.03, y + 0.12, zz + 0.02), (vx + 0.03, y + 0.22, zz + 0.1), m, name="valve_stem")
+        k.cyl((vx, y + 0.22, zz + 0.06), 0.1, 0.02, mat("valve_wheel", color=(0.08, 0.08, 0.08), metal=0.7), seg=8, uv=0.2,
+              M=Matrix.Translation((vx, y + 0.22, zz + 0.06)) @ Matrix.Rotation(math.radians(-90), 4, "X") @ Matrix.Translation((-vx, -(y + 0.22), -(zz + 0.06))),
+              name="valve_wheel")
+
+
+def pump_tank(k, x, y, r=0.5, h=1.8, occluder=True):
+    steel = mat("metal_rusty", "metal_rusty", metal=0.5, rough=0.6)
+    k.cyl((x, y, 0), r, h, steel, seg=10, uv=1, occluder=occluder, name="tank")
+    k.cyl((x, y, h), r * 0.6, 0.15, steel, seg=10, uv=0.5, r_top=0.1, occluder=occluder, name="tank_top")
+    k.box((x - 0.05, y - r - 0.15, 0.4), (x + 0.05, y - r, 0.5), steel, name="tank_outlet")
+    k.cyl((x + r * 0.7, y - r * 0.7, 1.3), 0.08, 0.02, mat("gauge", color=(0.8, 0.78, 0.7)), seg=8, name="gauge")
+
+
+def bed(k, x, y, yaw=0, double=True, messy=True, occluder=True):
+    """客房的床（床頭朝 +y）。"""
+    M = T(x, y, 0, yaw)
+    wood = mat("wood_furniture", "wood_furniture")
+    linen = mat("fabric_linen", "fabric_linen")
+    cover = mat("fabric_velvet_red", "fabric_velvet_red")
+    w = 0.8 if double else 0.5
+    k.box((-w, -1.0, 0.0), (w, 1.0, 0.45), wood, uv=1, M=M, occluder=occluder, name="bed_frame")
+    k.box((-w + 0.03, -0.97, 0.45), (w - 0.03, 0.97, 0.6), linen, uv=1, M=M, occluder=occluder, name="mattress")
+    k.box((-w - 0.02, 0.97, 0.0), (w + 0.02, 1.05, 1.15), wood, uv=1, M=M, occluder=occluder, name="headboard")
+    k.box((-w + 0.1, 0.55, 0.6), (-0.05, 0.9, 0.72), linen, M=M, name="pillow")
+    if double:
+        k.box((0.05, 0.55, 0.6), (w - 0.1, 0.9, 0.72), linen, M=M, name="pillow")
+    Mc = M @ Matrix.Rotation(math.radians(6 if messy else 0), 4, "Z")
+    k.box((-w - 0.03, -1.0, 0.5), (w + 0.03, 0.35, 0.66), cover, uv=1, M=Mc, name="cover")
+
+
+def wardrobe(k, x, y, yaw=0, occluder=True):
+    M = T(x, y, 0, yaw)
+    wood = mat("wood_furniture", "wood_furniture")
+    k.box((-0.55, -0.3, 0), (0.55, 0.3, 2.1), wood, uv=1, M=M, occluder=occluder, name="wardrobe")
+    k.box((-0.005, 0.3, 0.1), (0.005, 0.31, 2.0), mat("dark", color=(0.03, 0.02, 0.015)), M=M, name="ward_gap")
+    for sx in (-0.05, 0.05):
+        k.box((sx - 0.01, 0.3, 1.0), (sx + 0.01, 0.33, 1.15), mat("brass", "brass", metal=0.7), M=M, name="ward_handle")
+
+
+def room_door_number(k, x, y, z, yaw=0, text_col=(0.8, 0.65, 0.25)):
+    """客房門上的號碼牌（只是一塊黃銅牌，數字由遊戲文字顯示）。"""
+    M = T(x, y, z, yaw)
+    k.box((-0.08, 0.05, -0.04), (0.08, 0.065, 0.04), mat("brass", "brass", metal=0.7, rough=0.35), M=M, name="room_number")
+
+
+def broken_window(k, x, y, z, yaw=0, w=1.1, h=1.8, power=40.0):
+    """被撞破的窗（看門犬從這裡跳進來）：窗框歪了、地上有碎玻璃。"""
+    window(k, x, y, z, yaw, w=w, h=h, power=power, curtains=True)
+    M = T(x, y, 0, yaw)
+    glass = mat("glass_shard", color=(0.5, 0.6, 0.65), rough=0.05, metal=0.3)
+    import random
+    rnd = random.Random(int(x * 13 + y * 7))
+    for i in range(14):
+        px, py = rnd.uniform(-w, w), rnd.uniform(0.2, 1.6)
+        Ms = M @ Matrix.Translation((px, py, 0.003)) @ Matrix.Rotation(rnd.uniform(0, 3), 4, "Z")
+        k.box((-0.05, -0.02, 0), (0.05, 0.02, 0.004), glass, M=Ms, name="shard")
+    k.box((-w / 2, 0.0, z + h * 0.35), (w / 2, 0.06, z + h * 0.65), mat("night_sky", color=(0.12, 0.17, 0.3), emit=1.2), M=M, name="hole")
+
+
+def mop_bucket(k, x, y):
+    """清潔人員的拖把桶＋拖把（走廊上的雜物）。"""
+    yellow = mat("bucket_yellow", color=(0.6, 0.45, 0.05), rough=0.5)
+    k.box((x - 0.2, y - 0.15, 0.05), (x + 0.2, y + 0.15, 0.4), yellow, occluder=True, name="bucket")
+    for sx in (-0.15, 0.15):
+        k.cyl((x + sx, y, 0), 0.04, 0.05, mat("wheel", color=(0.03, 0.03, 0.03)), seg=6, name="bucket_wheel")
+    Mm = Matrix.Translation((x + 0.05, y, 0.1)) @ Matrix.Rotation(0.25, 4, "Y")
+    k.box((-0.015, -0.015, 0), (0.015, 0.015, 1.3), mat("wood_crate", "wood_crate"), uv=0.4, M=Mm, occluder=True, name="mop")

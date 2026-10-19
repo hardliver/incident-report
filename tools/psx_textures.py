@@ -293,6 +293,47 @@ def meat(name, seed, size=64):
     return save(arr, name, 16)
 
 
+def rubber_floor(name, seed, size=128):
+    """健身房的黑色橡膠地墊：細小的彩色顆粒＋拼接縫。"""
+    r = rng(seed)
+    n = tile_noise(size, 16, seed, 2)
+    arr = ramp(n * 0.4 + 0.2, ["#0e0e10", "#1a1a1e", "#26262a"])
+    speck = r.random((size, size))
+    arr[speck > 0.97] = hexc("#5a5a60")
+    arr[speck < 0.015] = hexc("#3a4a6a")
+    arr[:, 0:1] *= 0.5
+    arr[0:1, :] *= 0.5
+    return save(arr, name, 16)
+
+
+def locker_paint(name, base, seed, size=64):
+    """漆過的鐵櫃門：底色、上方的通風孔、刮痕。"""
+    n = tile_noise(size, 4, seed, 3)
+    arr = ramp(n * 0.4 + 0.4, base)
+    for y in range(6, 16, 3):
+        arr[y:y + 1, 10:size - 10] *= 0.35
+    arr[:, 0:2] *= 0.5
+    arr[:, size - 2:] *= 0.5
+    r = rng(seed)
+    for _ in range(6):
+        x, y = r.integers(0, size - 10), r.integers(20, size - 4)
+        arr[y, x:x + r.integers(3, 10)] *= 1.4
+    arr = grime(arr, seed + 1, 0.3)
+    return save(arr, name, 16)
+
+
+def pool_tile(name, seed, size=128, n=16):
+    """泳池的藍色小磁磚，乾掉的水垢線＋污泥。"""
+    t = size // n
+    noise = tile_noise(size, 16, seed, 2)
+    out = ramp(noise * 0.4 + 0.4, ["#1a3a4a", "#2a5a6a", "#4a7a8a"])
+    for i in range(n):
+        out[i * t, :] = hexc("#8a9a9a") * 0.7
+        out[:, i * t] = hexc("#8a9a9a") * 0.7
+    out = grime(out, seed + 1, 0.55)
+    return save(out, name, 16)
+
+
 def carpet(name, field, border, seed, size=128):
     """地毯：底色＋小花紋＋磨損。可以重複鋪在走廊。"""
     n = tile_noise(size, 32, seed, 2)
@@ -477,6 +518,9 @@ def build_all():
     m(gravel, "ground_gravel", ["#2a2620", "#4a443a", "#6a6252", "#8a8270"], 61)
     m(grass, "ground_grass", ["#0e1208", "#1e2412", "#3a3a1e", "#5a5430"], 62)
     m(frost_metal, "frost_metal", 63)
+    m(rubber_floor, "floor_rubber", 66)
+    m(locker_paint, "locker_green", ["#1a2a22", "#2a4234", "#3a5a46"], 67)
+    m(pool_tile, "pool_tile", 68)
     m(meat, "meat", 65)
     m(terracotta, "floor_terracotta", 64)
     m(carpet, "carpet_red", ["#2a0806", "#4a1210", "#6a1c18"], "#8a6a2a", 14)
