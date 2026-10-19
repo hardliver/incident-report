@@ -253,9 +253,10 @@ def table_long(k, x, y, yaw=0, length=4.0, width=1.1, cloth=True, occluder=False
     wood = mat("wood_furniture", "wood_furniture")
     top_m = mat("linen", "fabric_linen") if cloth else wood
     L, W = length / 2, width / 2
-    k.box((-W, -L, 0.74), (W, L, 0.8), top_m, uv=1.0, M=M, occluder=occluder, name="table_top")
-    if cloth:   # 垂下來的桌巾
+    if cloth:   # 垂下來的桌巾（取代桌板；兩個面重疊在同一高度會互相遮光而變黑）
         k.box((-W - 0.02, -L - 0.02, 0.5), (W + 0.02, L + 0.02, 0.8), top_m, uv=1.0, M=M, occluder=occluder, name="cloth")
+    else:
+        k.box((-W, -L, 0.74), (W, L, 0.8), top_m, uv=1.0, M=M, occluder=occluder, name="table_top")
     for sx in (-W + 0.08, W - 0.08):
         for sy in (-L + 0.1, L - 0.1):
             k.box((sx - 0.05, sy - 0.05, 0), (sx + 0.05, sy + 0.05, 0.74), wood, uv=0.5, M=M, name="leg")
@@ -621,3 +622,155 @@ def boxes_stack(k, x, y, yaw=0, occluder=True):
     for (a, b, h, z) in ((-0.35, 0.0, 0.4, 0), (0.0, 0.4, 0.4, 0), (-0.2, 0.2, 0.35, 0.4)):
         k.box((a, -0.25, z), (b, 0.25, z + h), card, uv=0.6, M=M, occluder=occluder, name="cbox")
         k.box((a + (b - a) / 2 - 0.03, -0.255, z), (a + (b - a) / 2 + 0.03, 0.255, z + h + 0.002), tape, M=M, name="ctape")
+
+
+# ======================================================================
+# 第二批道具（2026-10-19）
+# ======================================================================
+
+def coat(k, x, y, z, yaw=0, tex="fabric_curtain_green", length=1.0):
+    """掛著的大衣：肩膀＋往下的長方塊，略微展開。z 是衣架鉤子的高度。"""
+    M = T(x, y, z, yaw)
+    m = mat("coat_" + tex, tex)
+    k.box((-0.22, -0.06, -0.12), (0.22, 0.06, 0.0), m, uv=0.6, M=M, name="coat_shoulder")
+    k.cyl((0, 0, -length), 0.24, length - 0.1, m, seg=6, uv=0.6, r_top=0.2, M=M @ Matrix.Diagonal((1, 0.45, 1, 1)), name="coat_body")
+
+
+def coat_rack_rail(k, x0, x1, y, z=1.75):
+    """衣帽間的掛衣桿（橫桿＋兩根立柱）。"""
+    br = mat("brass", "brass", metal=0.7, rough=0.35)
+    k.box((x0, y - 0.015, z - 0.015), (x1, y + 0.015, z + 0.015), br, uv=0.3, name="rail")
+    for x in (x0, x1):
+        k.box((x - 0.02, y - 0.02, 0), (x + 0.02, y + 0.02, z), br, uv=0.3, name="rail_post")
+
+
+def counter(k, x, y, yaw=0, w=2.0, occluder=True):
+    """櫃台（衣帽間的寄物櫃台）：檯面＋前板＋服務鈴。"""
+    M = T(x, y, 0, yaw)
+    wood = mat("wood_furniture", "wood_furniture")
+    panel = mat("wood_dark_panel", "wainscot_dark")
+    k.box((-w / 2, -0.3, 0), (w / 2, 0.3, 1.0), panel, uv=1.0, M=M, occluder=occluder, name="counter_body")
+    k.box((-w / 2 - 0.04, -0.34, 1.0), (w / 2 + 0.04, 0.34, 1.05), wood, uv=1, M=M, occluder=occluder, name="counter_top")
+    br = mat("brass", "brass", metal=0.8, rough=0.3)
+    k.cyl((0.4, 0, 1.05), 0.05, 0.04, br, seg=8, uv=0.2, r_top=0.01, M=M, name="bell")
+
+
+def tag_board(k, x, y, z, yaw=0, rows=4, cols=6, missing=()):
+    """號碼牌板：一格一格的小鉤子，掛著黃銅號碼牌。missing 是空著的格子。"""
+    M = T(x, y, z, yaw)
+    wood = mat("wood_furniture", "wood_furniture")
+    br = mat("brass", "brass", metal=0.7, rough=0.4)
+    w, h = cols * 0.12, rows * 0.14
+    k.box((-w / 2 - 0.05, 0, -0.05), (w / 2 + 0.05, 0.03, h + 0.05), wood, uv=0.6, M=M, name="tagboard")
+    for r in range(rows):
+        for c in range(cols):
+            if (r, c) in missing:
+                continue
+            cx = -w / 2 + 0.06 + c * 0.12
+            cz = 0.04 + r * 0.14
+            k.box((cx - 0.03, 0.03, cz), (cx + 0.03, 0.04, cz + 0.07), br, uv=0.2, M=M, name="tag")
+
+
+def umbrella_stand(k, x, y):
+    m = mat("brass", "brass", metal=0.6, rough=0.4)
+    k.cyl((x, y, 0), 0.14, 0.55, m, seg=8, uv=0.4, cap=False, occluder=True, name="umb_stand")
+    for i, c in enumerate(((0.02, 0.02, 0.02), (0.15, 0.03, 0.03), (0.05, 0.05, 0.1))):
+        ang = i * 2.1
+        Mi = Matrix.Translation((x + 0.05 * math.cos(ang), y + 0.05 * math.sin(ang), 0.1)) @ Matrix.Rotation(0.12, 4, "X")
+        k.cyl((0, 0, 0), 0.04, 0.85, mat(f"umb{i}", color=c, rough=0.5), seg=6, uv=0.3, r_top=0.015, M=Mi, name="umbrella")
+
+
+def cloche_plate(k, x, y, z, open_=False):
+    """餐盤＋保溫蓋（銀色圓頂）。"""
+    plate = mat("china", color=(0.75, 0.73, 0.68), rough=0.3)
+    silver = mat("silver", color=(0.6, 0.6, 0.62), metal=0.9, rough=0.3)
+    k.cyl((x, y, z), 0.15, 0.015, plate, seg=10, uv=0.2, name="plate")
+    if not open_:
+        k.cyl((x, y, z + 0.015), 0.13, 0.11, silver, seg=10, uv=0.2, r_top=0.03, name="cloche")
+        k.cyl((x, y, z + 0.125), 0.015, 0.02, silver, seg=6, uv=0.1, name="cloche_knob")
+    else:
+        # 打開的：裡面是發黑的食物
+        k.cyl((x, y, z + 0.015), 0.09, 0.05, mat("rotten_food", color=(0.12, 0.1, 0.05), rough=0.9), seg=7, uv=0.2, r_top=0.05, name="food")
+
+
+def name_card(k, x, y, z, yaw=0):
+    """桌上的名牌（折起來的小卡片）。"""
+    M = T(x, y, z, yaw)
+    card = mat("card", color=(0.8, 0.77, 0.68), rough=0.6)
+    for sgn in (1, -1):
+        Mt = M @ Matrix.Rotation(math.radians(20 * sgn), 4, "X")
+        k.box((-0.05, -0.002 * sgn, 0), (0.05, 0.002 * sgn + 0.0001, 0.05), card, uv=0.1, M=Mt, name="namecard")
+
+
+def patrol_car(k, x, y, yaw=0, lights_on=True, occluder=True):
+    """柯爾的郡警巡邏車（1990 年代的四門轎車，低多邊形）：車身、車窗、車輪、警示燈、頭燈。
+
+    車頭朝 -y（yaw 決定方向）。
+    """
+    M = T(x, y, 0, yaw)
+    body = mat("car_white", color=(0.62, 0.6, 0.55), rough=0.35, metal=0.2)
+    door = mat("car_green", color=(0.08, 0.14, 0.1), rough=0.4, metal=0.2)       # 郡警的深綠色車門
+    glass = mat("car_glass", color=(0.02, 0.025, 0.03), rough=0.1, metal=0.3)
+    tire = mat("tire", color=(0.02, 0.02, 0.02), rough=0.8)
+    chrome = mat("chrome", color=(0.6, 0.6, 0.6), metal=0.9, rough=0.3)
+    k.box((-0.88, -2.45, 0.3), (0.88, 2.45, 0.85), body, uv=1, M=M, occluder=occluder, name="car_body")
+    k.box((-0.89, -0.9, 0.35), (0.89, 1.0, 0.8), door, uv=1, M=M, occluder=occluder, name="car_doors")
+    # 車廂（略窄、前後傾斜：用兩個盒子近似）
+    k.box((-0.78, -0.75, 0.85), (0.78, 1.15, 1.32), glass, uv=1, M=M, occluder=occluder, name="car_cabin")
+    k.box((-0.8, -0.55, 1.32), (0.8, 0.95, 1.38), body, uv=1, M=M, occluder=occluder, name="car_roof")
+    # 警示燈（紅藍）
+    red = mat("lightbar_red", color=(0.9, 0.05, 0.03), emit=8.0 if lights_on else 0.0)
+    blue = mat("lightbar_blue", color=(0.05, 0.15, 1.0), emit=8.0 if lights_on else 0.0)
+    k.box((-0.55, -0.05, 1.38), (-0.02, 0.15, 1.48), red, M=M, name="lightbar_r")
+    k.box((0.02, -0.05, 1.38), (0.55, 0.15, 1.48), blue, M=M, name="lightbar_b")
+    # 車輪
+    for sx in (-0.82, 0.82):
+        for sy in (-1.5, 1.6):
+            Mw = M @ Matrix.Translation((sx, sy, 0.32)) @ Matrix.Rotation(math.radians(90), 4, "Y") @ Matrix.Translation((0, 0, -0.11))
+            k.cyl((0, 0, 0), 0.32, 0.22, tire, seg=8, uv=0.3, M=Mw, name="wheel")
+    # 保險桿、頭燈、尾燈
+    k.box((-0.9, -2.55, 0.3), (0.9, -2.45, 0.45), chrome, M=M, name="bumper_f")
+    k.box((-0.9, 2.45, 0.3), (0.9, 2.55, 0.45), chrome, M=M, name="bumper_r")
+    head = mat("headlight", color=(1.0, 0.95, 0.8), emit=12.0 if lights_on else 0.0)
+    tail = mat("taillight", color=(0.7, 0.02, 0.02), emit=4.0 if lights_on else 0.0)
+    for sx in (-0.62, 0.62):
+        k.box((sx - 0.18, -2.47, 0.55), (sx + 0.18, -2.44, 0.72), head, M=M, name="headlight")
+        k.box((sx - 0.18, 2.44, 0.6), (sx + 0.18, 2.47, 0.75), tail, M=M, name="taillight")
+    if lights_on:
+        for sx in (-0.62, 0.62):
+            p = M @ Vector((sx, -2.6, 0.65))
+            k.light("SPOT", tuple(p), (1.0, 0.95, 0.82), 400, radius=0.08, name="headbeam", spot_angle=55,
+                    rot=(90 - 6, 0, yaw + 180))
+        k.light("POINT", tuple(M @ Vector((-0.3, 0.05, 1.7))), (1.0, 0.1, 0.05), 25, radius=0.1, name="bar_red")
+        k.light("POINT", tuple(M @ Vector((0.3, 0.05, 1.7))), (0.1, 0.25, 1.0), 25, radius=0.1, name="bar_blue")
+
+
+def tree(k, x, y, h=7.0, occluder=True, dead=False):
+    """樹：樹幹＋三層錐體樹冠（冬天的針葉樹）或光禿的枝幹。"""
+    bark = mat("bark", color=(0.08, 0.06, 0.045), rough=0.9)
+    k.cyl((x, y, 0), 0.22, h * 0.5, bark, seg=6, uv=0.5, r_top=0.12, occluder=occluder, name="trunk")
+    if dead:
+        for i in range(5):
+            a = i * 1.3
+            Mb = Matrix.Translation((x, y, h * (0.3 + 0.1 * i))) @ Matrix.Rotation(a, 4, "Z") @ Matrix.Rotation(0.9, 4, "X")
+            k.cyl((0, 0, 0), 0.06, h * 0.35, bark, seg=4, uv=0.3, r_top=0.01, M=Mb, occluder=occluder, name="branch")
+        return
+    leaf = mat("pine", color=(0.02, 0.05, 0.03), rough=0.9)
+    for i, (z, r, hh) in enumerate(((0.25, 1.6, 0.4), (0.5, 1.2, 0.35), (0.72, 0.75, 0.3))):
+        k.cyl((x, y, h * z), r, h * hh, leaf, seg=7, uv=1, r_top=0.05, occluder=occluder, name="crown")
+
+
+def lamp_post(k, x, y, h=3.0, power=80.0, occluder=True):
+    iron = mat("iron", color=(0.04, 0.04, 0.04), metal=0.8, rough=0.5)
+    glow = mat("lantern_glass", color=(0.9, 0.62, 0.32), emit=2.5)
+    k.cyl((x, y, 0), 0.08, h, iron, seg=6, uv=0.5, r_top=0.05, occluder=occluder, name="post")
+    k.box((x - 0.15, y - 0.15, h), (x + 0.15, y + 0.15, h + 0.35), glow, uv=0.3, name="lantern")
+    k.box((x - 0.18, y - 0.18, h + 0.35), (x + 0.18, y + 0.18, h + 0.42), iron, uv=0.3, name="lantern_cap")
+    k.light("POINT", (x, y, h + 0.15), (1.0, 0.75, 0.45), power, radius=0.15, name="post_light")
+
+
+def steps(k, x0, x1, y0, n, rise, run, material=None, occluder=False):
+    """寬的戶外階梯：從 y0 往 +y 上升。"""
+    m = material or mat("stone_step", "floor_stone")
+    for i in range(n):
+        k.box((x0, y0 + i * run, 0), (x1, y0 + (n + 1) * run, (i + 1) * rise), m, uv=1.5, occluder=occluder, name="step")

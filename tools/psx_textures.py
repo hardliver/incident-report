@@ -232,6 +232,27 @@ def marble(name, base, seed, size=128):
     return save(arr, name, 20)
 
 
+def gravel(name, base, seed, size=128):
+    """碎石車道：很多小石頭（細的高頻雜訊）＋車輪壓過的痕跡。"""
+    n = tile_noise(size, 32, seed, 2)
+    r = rng(seed)
+    speck = r.random((size, size))
+    arr = ramp(n * 0.6 + (speck > 0.7) * 0.3, base)
+    ruts = tile_noise(size, 2, seed + 1, 1)
+    arr *= (0.85 + 0.2 * ruts)[..., None]
+    arr = grime(arr, seed + 2, 0.3)
+    return save(arr, name, 16)
+
+
+def grass(name, base, seed, size=128):
+    """枯黃、潮濕的草地。"""
+    n = tile_noise(size, 16, seed, 3)
+    blades = stretch_noise(size, 64, 8, seed + 1).T
+    arr = ramp(n * 0.5 + blades * 0.5, base)
+    arr = grime(arr, seed + 2, 0.35)
+    return save(arr, name, 16)
+
+
 def carpet(name, field, border, seed, size=128):
     """地毯：底色＋小花紋＋磨損。可以重複鋪在走廊。"""
     n = tile_noise(size, 32, seed, 2)
@@ -395,6 +416,8 @@ def build_all():
     m(marble_checker, "floor_marble_checker", ["#b8b0a0", "#d8d0c0", "#ece6d8"], ["#141210", "#2a2622", "#3e3832"], 13)
     m(marble, "marble_white", ["#5a564e", "#9a948a", "#bcb6aa", "#d0cabe"], 19)
     m(marble, "marble_dark", ["#141210", "#2a2622", "#3e3832", "#5a524a"], 20)
+    m(gravel, "ground_gravel", ["#2a2620", "#4a443a", "#6a6252", "#8a8270"], 61)
+    m(grass, "ground_grass", ["#0e1208", "#1e2412", "#3a3a1e", "#5a5430"], 62)
     m(carpet, "carpet_red", ["#2a0806", "#4a1210", "#6a1c18"], "#8a6a2a", 14)
     m(carpet, "carpet_green", ["#0a1a10", "#14301e", "#204a2e"], "#7a6a3a", 15)
     m(tiles_bath, "tiles_white", ["#8a8a80", "#c8c8bc", "#e0e0d4"], 16)

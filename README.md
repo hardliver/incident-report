@@ -25,6 +25,7 @@ python3 tools/bake_room.py foyer       # 房間 → build/rooms/foyer/
 python3 tools/bake_room.py --all
 python3 tools/character.py cole        # 角色 sprite → art/characters/cole/（角色定義在 characters/）
 python3 tools/preview_composite.py     # 把角色放進房間測試遮擋 → build/composite_test.png
+python3 tools/icons.py                 # 物品欄圖示 → art/icons/
 ```
 
 ## 資料夾
