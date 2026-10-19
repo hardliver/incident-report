@@ -15,6 +15,7 @@ def build(k):
                    ceiling=mat("ceiling_wood", "ceiling_wood"),
                    wainscot=mat("wainscot_dark", "wainscot_dark"), wainscot_h=1.2)
     kit.door(k, 5.0, 2.0, 90, w=1.0, h=2.5, double=True)
+    kit.door(k, -4.0, 12.0, 180, w=0.9, h=2.3)          # 北牆西側：通往一樓西側走廊
     # 長桌＋座位（左右各 4、主位 1）
     kit.table_long(k, 0, 6.6, 0, length=6.4, width=1.25, occluder=True)
     seats = []
@@ -76,6 +77,8 @@ def build(k):
             {"camera": "fire", "poly": [(-5, 4.5), (-1.5, 4.5), (-1.5, 12), (-5, 12)]},
         ],
         "doors": [{"id": "east", "poly": [(4.6, 1.0), (5.0, 1.0), (5.0, 3.0), (4.6, 3.0)],
-                   "to": "foyer", "spawn": {}}],
+                   "to": "foyer", "spawn": {}},
+                  {"id": "north", "poly": [(-4.5, 11.6), (-3.5, 11.6), (-3.5, 12.0), (-4.5, 12.0)],
+                   "to": "hall_west", "spawn": {}}],
         "spawn": {"x": 4.0, "y": 2.0, "yaw": 90},
     }

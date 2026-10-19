@@ -774,3 +774,191 @@ def steps(k, x0, x1, y0, n, rise, run, material=None, occluder=False):
     m = material or mat("stone_step", "floor_stone")
     for i in range(n):
         k.box((x0, y0 + i * run, 0), (x1, y0 + (n + 1) * run, (i + 1) * rise), m, uv=1.5, occluder=occluder, name="step")
+
+
+# ======================================================================
+# 第三批道具：廚房、冷凍庫、圖書室、配膳室（2026-10-19）
+# ======================================================================
+
+def kitchen_counter(k, x, y, yaw=0, w=2.0, d=0.65, occluder=True):
+    """流理台：櫥櫃＋石材檯面。正面朝 +y。"""
+    M = T(x, y, 0, yaw)
+    k.box((-w / 2, -d / 2, 0.08), (w / 2, d / 2, 0.88), mat("wood_crate", "wood_crate"), uv=0.8, M=M, occluder=occluder, name="cnt_body")
+    k.box((-w / 2 - 0.02, -d / 2, 0.88), (w / 2 + 0.02, d / 2 + 0.03, 0.93), mat("marble_dark", "marble_dark", rough=0.4), uv=1, M=M, occluder=occluder, name="cnt_top")
+    k.box((-w / 2, -d / 2 + 0.03, 0), (w / 2, d / 2 - 0.05, 0.08), mat("dark", color=(0.03, 0.02, 0.015)), M=M, name="cnt_kick")
+    n = max(1, int(w / 0.5))
+    for i in range(n):
+        cx = -w / 2 + (i + 0.5) * w / n
+        k.box((cx - 0.005, d / 2, 0.12), (cx + 0.005, d / 2 + 0.005, 0.84), mat("dark", color=(0.03, 0.02, 0.015)), M=M, name="cnt_gap")
+        k.box((cx + 0.05, d / 2, 0.74), (cx + 0.12, d / 2 + 0.02, 0.76), mat("brass", "brass", metal=0.7), M=M, name="cnt_handle")
+
+
+def stove(k, x, y, yaw=0, occluder=True):
+    """業務用瓦斯爐：爐台、四個爐口、烤箱門、後面接到牆上的瓦斯管（主廚戰：射爆它）。"""
+    M = T(x, y, 0, yaw)
+    steel = mat("metal_steel", "metal_steel", metal=0.6, rough=0.45)
+    black = mat("iron", color=(0.03, 0.03, 0.03), metal=0.7, rough=0.5)
+    k.box((-0.6, -0.4, 0.0), (0.6, 0.4, 0.9), steel, uv=0.8, M=M, occluder=occluder, name="stove_body")
+    k.box((-0.6, -0.4, 0.9), (0.6, 0.4, 0.94), black, M=M, occluder=occluder, name="stove_top")
+    for bx in (-0.3, 0.3):
+        for by in (-0.15, 0.15):
+            k.cyl((bx, by, 0.94), 0.11, 0.03, black, seg=8, uv=0.2, M=M, cap=False, name="burner")
+    k.box((-0.45, 0.4, 0.12), (0.45, 0.42, 0.65), mat("glass_dark", color=(0.02, 0.02, 0.025), rough=0.15), M=M, name="oven_door")
+    k.box((-0.4, 0.42, 0.68), (0.4, 0.45, 0.71), mat("chrome", color=(0.6, 0.6, 0.6), metal=0.9, rough=0.3), M=M, name="oven_handle")
+    k.box((-0.6, -0.42, 0.94), (0.6, -0.36, 1.5), steel, uv=0.8, M=M, occluder=occluder, name="stove_back")
+    # 瓦斯管（黃色）：從爐子背後到牆上
+    gas = mat("gas_pipe", color=(0.6, 0.45, 0.05), metal=0.4, rough=0.5)
+    k.box((0.45, -0.45, 0.2), (0.5, -0.4, 1.7), gas, M=M, name="gas_pipe")
+    k.box((0.42, -0.47, 1.4), (0.53, -0.38, 1.48), mat("valve_red", color=(0.55, 0.05, 0.03)), M=M, name="gas_valve")
+
+
+def sink(k, x, y, yaw=0):
+    M = T(x, y, 0, yaw)
+    steel = mat("metal_steel", "metal_steel", metal=0.6, rough=0.4)
+    kitchen_counter(k, x, y, yaw, w=1.2)
+    k.box((-0.4, -0.22, 0.75), (0.4, 0.22, 0.935), mat("sink_basin", color=(0.25, 0.26, 0.27), metal=0.7, rough=0.3), M=M, name="basin")
+    k.box((-0.03, -0.3, 0.93), (0.03, -0.25, 1.2), steel, M=M, name="faucet")
+    k.box((-0.03, -0.3, 1.17), (0.03, -0.1, 1.2), steel, M=M, name="spout")
+
+
+def pot_rack(k, x, y, z, w=1.6):
+    """天花板吊下來的鍋架，掛著鍋子和湯杓。"""
+    iron = mat("iron", color=(0.03, 0.03, 0.03), metal=0.8, rough=0.5)
+    copper = mat("copper", color=(0.45, 0.2, 0.1), metal=0.8, rough=0.35)
+    k.box((x - w / 2, y - 0.25, z), (x + w / 2, y + 0.25, z + 0.03), iron, name="rack")
+    for cx in (x - w / 2 + 0.03, x + w / 2 - 0.03):
+        k.box((cx - 0.01, y - 0.01, z), (cx + 0.01, y + 0.01, z + 0.9), iron, name="rack_chain")
+    for i in range(5):
+        px = x - w / 2 + 0.2 + i * (w - 0.4) / 4
+        r = 0.1 + 0.03 * (i % 3)
+        k.box((px - 0.005, y - 0.005, z - 0.25), (px + 0.005, y + 0.005, z), iron, name="hook")
+        k.cyl((px, y, z - 0.25 - r * 0.8), r, r * 0.8, copper, seg=8, uv=0.3, name="pot")
+
+
+def chopping_block(k, x, y, occluder=True):
+    wood = mat("wood_crate", "wood_crate")
+    k.box((x - 0.35, y - 0.35, 0), (x + 0.35, y + 0.35, 0.9), wood, uv=0.8, occluder=occluder, name="block")
+    k.box((x - 0.36, y - 0.36, 0.85), (x + 0.36, y + 0.36, 0.9), mat("blood_wood", color=(0.2, 0.05, 0.03), rough=0.7), name="block_stain")
+
+
+def fridge(k, x, y, yaw=0, occluder=True):
+    M = T(x, y, 0, yaw)
+    white = mat("enamel", color=(0.62, 0.6, 0.55), rough=0.35)
+    k.box((-0.4, -0.35, 0), (0.4, 0.35, 1.9), white, M=M, occluder=occluder, name="fridge")
+    k.box((-0.005, 0.35, 0.1), (0.005, 0.36, 1.85), mat("dark", color=(0.03, 0.02, 0.015)), M=M, name="fridge_gap")
+    for sx in (-0.06, 0.06):
+        k.box((sx - 0.015, 0.35, 1.0), (sx + 0.015, 0.39, 1.4), mat("chrome", color=(0.6, 0.6, 0.6), metal=0.9, rough=0.3), M=M, name="fridge_handle")
+
+
+def dumbwaiter(k, x, y, z, yaw=0, open_=False):
+    """送餐升降機的牆上開口：木框＋上下拉的小門（P4）。朝 +y。"""
+    M = T(x, y, z, yaw)
+    frame = mat("wood_furniture", "wood_furniture")
+    k.box((-0.45, -0.02, -0.05), (0.45, 0.06, 0.75), frame, uv=1, M=M, name="dw_frame")
+    k.box((-0.38, -0.01, 0.02), (0.38, 0.0, 0.68), mat("dw_inside", color=(0.01, 0.01, 0.01)), M=M, name="dw_hole")
+    if not open_:
+        k.box((-0.38, 0.0, 0.02), (0.38, 0.04, 0.68), mat("metal_rusty", "metal_rusty", metal=0.5), uv=0.6, M=M, name="dw_door")
+    k.box((0.5, 0.0, 0.25), (0.58, 0.05, 0.45), mat("brass", "brass", metal=0.7), M=M, name="dw_button")
+
+
+def shelf_unit(k, x, y, yaw=0, w=1.4, h=2.0, d=0.4, items="cans", occluder=True, metal=False):
+    """層架＋上面的東西：罐頭、瓶子、箱子、書。"""
+    import random
+    M = T(x, y, 0, yaw)
+    m = mat("metal_steel", "metal_steel", metal=0.6, rough=0.5) if metal else mat("wood_furniture", "wood_furniture")
+    for sx in (-w / 2, w / 2 - 0.04):
+        k.box((sx, -d / 2, 0), (sx + 0.04, d / 2, h), m, uv=1, M=M, occluder=occluder, name="shelf_post")
+    rnd = random.Random(int(x * 31 + y * 17))
+    n = 4
+    for i in range(n):
+        z = 0.1 + i * (h - 0.1) / n
+        k.box((-w / 2, -d / 2, z), (w / 2, d / 2, z + 0.03), m, uv=1, M=M, occluder=occluder, name="shelf_board")
+        cx = -w / 2 + 0.1
+        while cx < w / 2 - 0.12:
+            if items == "cans":
+                col = [(0.5, 0.1, 0.06), (0.15, 0.25, 0.12), (0.55, 0.45, 0.2), (0.4, 0.4, 0.42)][rnd.randrange(4)]
+                k.cyl((cx, 0, z + 0.03), 0.04, 0.11, mat(f"can{col}", color=col, metal=0.4, rough=0.4), seg=6, uv=0.1, M=M, name="can")
+                cx += 0.09
+            elif items == "jars":
+                k.cyl((cx, 0, z + 0.03), 0.05, 0.16, mat("jar", color=(0.3, 0.32, 0.22), rough=0.15), seg=6, uv=0.1, M=M, name="jar")
+                cx += 0.12
+            else:
+                hh = 0.15 + rnd.random() * 0.15
+                k.box((cx - 0.06, -d / 2 + 0.05, z + 0.03), (cx + 0.08, d / 2 - 0.05, z + 0.03 + hh), mat("cardboard", color=(0.42, 0.32, 0.2)), uv=0.5, M=M, name="sbox")
+                cx += 0.18
+
+
+def carcass(k, x, y, z_top=2.4):
+    """吊在鉤子上的肉（冷凍庫）：鏈條＋鉤子＋不規則的大塊肉（看不出是什麼動物）。"""
+    import random
+    rnd = random.Random(int(x * 97 + y * 13))
+    iron = mat("iron", color=(0.03, 0.03, 0.03), metal=0.8, rough=0.5)
+    meat = mat("meat", "meat", rough=0.55)
+    k.box((x - 0.01, y - 0.01, z_top - 0.35), (x + 0.01, y + 0.01, z_top), iron, name="hook_chain")
+    k.box((x - 0.015, y - 0.05, z_top - 0.4), (x + 0.015, y + 0.0, z_top - 0.34), iron, name="hook")
+    tw = rnd.uniform(-0.4, 0.4)
+    M = Matrix.Translation((x, y, z_top - 0.4)) @ Matrix.Rotation(tw, 4, "Z") @ Matrix.Diagonal((1.0, 0.7, 1.0, 1.0))
+    L = rnd.uniform(0.9, 1.15)
+    k.cyl((0, 0, -L), 0.13, L, meat, seg=7, uv=0.5, r_top=0.17, M=M, occluder=True, name="carcass")
+    # 下垂的一截（腿或肋排的形狀）
+    Ml = M @ Matrix.Translation((rnd.uniform(-0.06, 0.06), 0, -L)) @ Matrix.Rotation(rnd.uniform(-0.3, 0.3), 4, "Y")
+    k.cyl((0, 0, -0.35), 0.05, 0.38, meat, seg=5, uv=0.4, r_top=0.09, M=Ml, occluder=True, name="carcass_leg")
+
+
+def blood_pool(k, x, y, r=0.5, seed=0):
+    """地上的一攤血：幾個重疊的不規則扁平圓，暗紅、有一點反光。"""
+    import random
+    rnd = random.Random(seed)
+    m = mat("blood_pool", color=(0.045, 0.0, 0.0), rough=0.45)
+    for i in range(5):
+        dx, dy = rnd.uniform(-r, r) * 0.6, rnd.uniform(-r, r) * 0.6
+        rr = r * rnd.uniform(0.3, 0.6)
+        k.cyl((x + dx, y + dy, 0.001 + i * 0.0005), rr, 0.002, m, seg=7, uv=0.3, name="blood")
+
+
+def globe(k, x, y, occluder=True):
+    wood = mat("wood_furniture", "wood_furniture")
+    k.cyl((x, y, 0), 0.2, 0.05, wood, seg=8, uv=0.3, occluder=occluder, name="globe_base")
+    k.cyl((x, y, 0.05), 0.03, 0.7, wood, seg=6, uv=0.3, occluder=occluder, name="globe_stand")
+    k.cyl((x, y, 0.75), 0.25, 0.4, mat("globe", "painting_portrait"), seg=10, uv=0.5, r_top=0.2, occluder=occluder, name="globe_ball")
+
+
+def library_ladder(k, x, y, yaw=0, h=2.6):
+    M = T(x, y, 0, yaw)
+    wood = mat("wood_furniture", "wood_furniture")
+    tilt = Matrix.Rotation(math.radians(12), 4, "X")
+    for sx in (-0.22, 0.22):
+        k.box((sx - 0.025, -0.025, 0), (sx + 0.025, 0.025, h), wood, uv=0.5, M=M @ tilt, name="ladder_rail")
+    for i in range(1, 9):
+        z = i * h / 9
+        k.box((-0.22, -0.015, z - 0.015), (0.22, 0.015, z + 0.015), wood, uv=0.5, M=M @ tilt, name="ladder_rung")
+
+
+def vase_table(k, x, y, yaw=0, occluder=True):
+    """走廊的小邊桌＋花瓶（插著枯掉的花）。"""
+    M = T(x, y, 0, yaw)
+    wood = mat("wood_furniture", "wood_furniture")
+    k.box((-0.4, -0.2, 0.75), (0.4, 0.2, 0.8), wood, uv=0.6, M=M, occluder=occluder, name="side_top")
+    for sx in (-0.35, 0.35):
+        for sy in (-0.15, 0.15):
+            k.box((sx - 0.02, sy - 0.02, 0), (sx + 0.02, sy + 0.02, 0.75), wood, uv=0.4, M=M, name="side_leg")
+    p = M @ Vector((0, 0, 0.8))
+    k.cyl(tuple(p), 0.08, 0.3, mat("vase", color=(0.15, 0.2, 0.3), rough=0.25), seg=8, uv=0.3, r_top=0.05, name="vase")
+    for i in range(4):
+        a = i * 1.6
+        Mf = Matrix.Translation(tuple(p + Vector((0, 0, 0.3)))) @ Matrix.Rotation(a, 4, "Z") @ Matrix.Rotation(0.4, 4, "X")
+        k.box((-0.005, -0.005, 0), (0.005, 0.005, 0.35), mat("dead_stem", color=(0.15, 0.12, 0.06)), M=Mf, name="stem")
+
+
+def corridor(k, x0, y0, x1, y1, h, wall_tex="wallpaper_damask_green", floor_tex="floor_wood_dark", runner="carpet_red"):
+    """走廊：房間外殼＋中間一條地毯。"""
+    room_shell(k, x0, y0, x1, y1, h,
+               floor=mat(floor_tex, floor_tex), wall=mat(wall_tex, wall_tex),
+               ceiling=mat("plaster_grey", "plaster_grey"), wainscot=mat("wainscot_dark", "wainscot_dark"))
+    if runner:
+        if (x1 - x0) > (y1 - y0):
+            cy = (y0 + y1) / 2
+            rug(k, x0 + 0.2, cy - 0.6, x1 - 0.2, cy + 0.6, runner)
+        else:
+            cx = (x0 + x1) / 2
+            rug(k, cx - 0.6, y0 + 0.2, cx + 0.6, y1 - 0.2, runner)

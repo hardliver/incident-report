@@ -253,6 +253,46 @@ def grass(name, base, seed, size=128):
     return save(arr, name, 16)
 
 
+def frost_metal(name, seed, size=64):
+    """冷凍庫的牆：不鏽鋼板＋結霜（白色的斑）。"""
+    brush = stretch_noise(size, 2, 32, seed)
+    arr = ramp(brush * 0.5 + 0.3, ["#3a4448", "#5a666a", "#7a868a"])
+    fr = tile_noise(size, 6, seed + 1, 3)
+    m = np.clip((fr - 0.45) * 3, 0, 1)[..., None]
+    arr = arr * (1 - m * 0.7) + hexc("#c8d4d8") * m * 0.7
+    for x in range(0, size, 32):
+        arr[:, x:x + 1] *= 0.5
+    return save(arr, name, 16)
+
+
+def terracotta(name, seed, size=128, n=8):
+    """廚房的陶磚地板：方磚、磚縫、油污。"""
+    r = rng(seed)
+    t = size // n
+    out = np.zeros((size, size, 3))
+    noise = tile_noise(size, 16, seed, 2)
+    for i in range(n):
+        for j in range(n):
+            tone = 0.85 + r.random() * 0.25
+            sl = (slice(i * t, (i + 1) * t), slice(j * t, (j + 1) * t))
+            out[sl] = ramp(noise[sl] * 0.5 + 0.3, ["#4a2416", "#6a3420", "#8a4a2e"]) * tone
+            out[i * t, j * t:(j + 1) * t] = 40
+            out[i * t:(i + 1) * t, j * t] = 40
+    out = grime(out, seed + 1, 0.45)
+    return save(out, name, 16)
+
+
+def meat(name, seed, size=64):
+    """生肉：深紅色＋白色的油花紋理＋乾掉的暗色邊緣。"""
+    n = tile_noise(size, 6, seed, 3)
+    blob = tile_noise(size, 5, seed + 1, 2)
+    arr = ramp(n * 0.6 + 0.2, ["#2a0806", "#4a120e", "#6a1e18"])
+    fat = (blob > 0.68)[..., None]                       # 不規則的油花斑塊
+    arr = np.where(fat, hexc("#8a7a62"), arr)
+    arr = grime(arr, seed + 2, 0.35)
+    return save(arr, name, 16)
+
+
 def carpet(name, field, border, seed, size=128):
     """地毯：底色＋小花紋＋磨損。可以重複鋪在走廊。"""
     n = tile_noise(size, 32, seed, 2)
@@ -373,6 +413,24 @@ def books(name, seed, size=128):
     return save(out, name, 24)
 
 
+def books_same(name, seed, size=128):
+    """P3 的書架：同一本書排滿整層（同樣的顏色、高度、書背燙金位置）。"""
+    out = np.zeros((size, size, 3)) + hexc("#1a120c")
+    c = hexc("#9a3024")
+    rh = size // 2
+    n = tile_noise(size, 32, seed, 1)
+    for row in range(2):
+        y1 = (row + 1) * rh - 3
+        for x in range(0, size, 7):
+            out[y1 - 52:y1, x:x + 7] = c * (0.9 + 0.15 * n[y1 - 30, x])
+            out[y1 - 46:y1 - 43, x + 1:x + 6] = hexc("#c8a040")      # 燙金的書名
+            out[y1 - 14:y1 - 12, x + 1:x + 6] = hexc("#c8a040")
+            out[y1 - 52:y1, x:x + 1] *= 0.5
+        out[y1:(row + 1) * rh] = hexc("#3a2414")
+    out = grime(out, seed + 1, 0.2)
+    return save(out, name, 16)
+
+
 def paper(name, seed, size=64, lines=True):
     n = tile_noise(size, 4, seed, 3)
     arr = ramp(n * 0.5 + 0.4, ["#8a8068", "#c8bea0", "#e8e0c8"])
@@ -418,6 +476,9 @@ def build_all():
     m(marble, "marble_dark", ["#141210", "#2a2622", "#3e3832", "#5a524a"], 20)
     m(gravel, "ground_gravel", ["#2a2620", "#4a443a", "#6a6252", "#8a8270"], 61)
     m(grass, "ground_grass", ["#0e1208", "#1e2412", "#3a3a1e", "#5a5430"], 62)
+    m(frost_metal, "frost_metal", 63)
+    m(meat, "meat", 65)
+    m(terracotta, "floor_terracotta", 64)
     m(carpet, "carpet_red", ["#2a0806", "#4a1210", "#6a1c18"], "#8a6a2a", 14)
     m(carpet, "carpet_green", ["#0a1a10", "#14301e", "#204a2e"], "#7a6a3a", 15)
     m(tiles_bath, "tiles_white", ["#8a8a80", "#c8c8bc", "#e0e0d4"], 16)
@@ -444,6 +505,7 @@ def build_all():
     m(leather, "leather_brown", ["#1a0e08", "#3a2214", "#5a3820"], 39)
     m(brass, "brass", 40)
     m(books, "books", 41)
+    m(books_same, "books_same", 45)
     m(paper, "paper", 42)
     m(painting, "painting_dark", 43)
     m(painting, "painting_portrait", 44, dark=False)
