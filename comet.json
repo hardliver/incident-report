@@ -1,0 +1,15 @@
+{
+  "id": "hardliver/incident-report",
+  "name": "事故報告",
+  "sources": [
+    "src/gen_data.lua",
+    "src/geom.lua",
+    "src/world.lua",
+    "src/actor.lua",
+    "src/hotspots.lua",
+    "src/ui.lua",
+    "src/main.lua"
+  ],
+  "output": "build/incident.lua",
+  "pak": "build/incident.pak"
+}
