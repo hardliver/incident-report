@@ -14,8 +14,8 @@
 import math
 import os
 
+import bpy  # noqa: I001  (bpy 要先 import，bmesh 才找得到)
 import bmesh
-import bpy
 from mathutils import Matrix, Vector
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
