@@ -1,0 +1,134 @@
+{
+ "frame": [
+  112,
+  80
+ ],
+ "pivot": [
+  56,
+  69
+ ],
+ "pixels_per_meter": 62,
+ "directions": "0 = facing camera, then clockwise in 45 deg steps (2 = facing screen right)",
+ "rows": [
+  {
+   "anim": "idle",
+   "dir": 0,
+   "frames": 2
+  },
+  {
+   "anim": "idle",
+   "dir": 1,
+   "frames": 2
+  },
+  {
+   "anim": "idle",
+   "dir": 2,
+   "frames": 2
+  },
+  {
+   "anim": "idle",
+   "dir": 3,
+   "frames": 2
+  },
+  {
+   "anim": "idle",
+   "dir": 4,
+   "frames": 2
+  },
+  {
+   "anim": "idle",
+   "dir": 5,
+   "frames": 2
+  },
+  {
+   "anim": "idle",
+   "dir": 6,
+   "frames": 2
+  },
+  {
+   "anim": "idle",
+   "dir": 7,
+   "frames": 2
+  },
+  {
+   "anim": "walk",
+   "dir": 0,
+   "frames": 6
+  },
+  {
+   "anim": "walk",
+   "dir": 1,
+   "frames": 6
+  },
+  {
+   "anim": "walk",
+   "dir": 2,
+   "frames": 6
+  },
+  {
+   "anim": "walk",
+   "dir": 3,
+   "frames": 6
+  },
+  {
+   "anim": "walk",
+   "dir": 4,
+   "frames": 6
+  },
+  {
+   "anim": "walk",
+   "dir": 5,
+   "frames": 6
+  },
+  {
+   "anim": "walk",
+   "dir": 6,
+   "frames": 6
+  },
+  {
+   "anim": "walk",
+   "dir": 7,
+   "frames": 6
+  },
+  {
+   "anim": "attack",
+   "dir": 0,
+   "frames": 4
+  },
+  {
+   "anim": "attack",
+   "dir": 1,
+   "frames": 4
+  },
+  {
+   "anim": "attack",
+   "dir": 2,
+   "frames": 4
+  },
+  {
+   "anim": "attack",
+   "dir": 3,
+   "frames": 4
+  },
+  {
+   "anim": "attack",
+   "dir": 4,
+   "frames": 4
+  },
+  {
+   "anim": "attack",
+   "dir": 5,
+   "frames": 4
+  },
+  {
+   "anim": "attack",
+   "dir": 6,
+   "frames": 4
+  },
+  {
+   "anim": "attack",
+   "dir": 7,
+   "frames": 4
+  }
+ ]
+}

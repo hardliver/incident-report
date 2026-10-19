@@ -34,7 +34,7 @@ SEG = 8   # 每個斷面環的邊數（PS1 等級）
 # 角色貼圖（小張、低色數）
 # ======================================================================
 
-def char_texture(name, base, noise=0.08, size=32, seed=0, stripes=None, blood=0.0, tears=0.0, rot=0.0):
+def char_texture(name, base, noise=0.08, size=32, seed=0, stripes=None, blood=0.0, tears=0.0, rot=0.0, plaid=None, check=None):
     """角色用的小貼圖：底色＋一點雜訊（布料、皮革的質感）。
 
     blood：血跡的面積比例（暗紅色斑塊）；tears：破洞（更深的顏色）；
@@ -48,11 +48,24 @@ def char_texture(name, base, noise=0.08, size=32, seed=0, stripes=None, blood=0.
     def blotches(frac, color, mix):
         if frac <= 0:
             return
+        # 兩種大小的斑點混合：大塊的污漬＋細碎的噴濺
         low = r.random((size // 4, size // 4))
-        big = np.asarray(Image.fromarray((low * 255).astype(np.uint8)).resize((size, size), Image.BILINEAR)) / 255.0
+        fine = r.random((size // 2, size // 2))
+        up = lambda a: np.asarray(Image.fromarray((a * 255).astype(np.uint8)).resize((size, size), Image.BILINEAR)) / 255.0
+        big = up(low) * 0.45 + up(fine) * 0.55
         m = (big > 1 - frac)[..., None]
         cc = np.array(color, float)
         arr[:] = np.where(m, arr * (1 - mix) + cc * mix, arr)
+    if plaid:        # 格子布：橫豎的色帶
+        pc = np.array([int(plaid[i:i + 2], 16) for i in (1, 3, 5)], float)
+        for k_ in range(0, size, 8):
+            arr[k_:k_ + 3, :] = arr[k_:k_ + 3, :] * 0.4 + pc * 0.6
+            arr[:, k_:k_ + 3] = arr[:, k_:k_ + 3] * 0.4 + pc * 0.6
+    if check:        # 小方格（廚師褲）
+        cc = np.array([int(check[i:i + 2], 16) for i in (1, 3, 5)], float)
+        yy, xx = np.mgrid[0:size, 0:size]
+        m = (((yy // 4) + (xx // 4)) % 2 == 0)[..., None]
+        arr[:] = np.where(m, cc, arr)
     blotches(rot, (70, 80, 62), 0.45)
     blotches(blood, (58, 8, 6), 0.75)
     blotches(tears, (10, 8, 8), 0.8)
@@ -66,7 +79,7 @@ def char_texture(name, base, noise=0.08, size=32, seed=0, stripes=None, blood=0.
     return path
 
 
-def face_texture(path, skin, brow, eye, lip, stubble=None, size=64, zombie=False):
+def face_texture(path, skin, brow, eye, lip, stubble=None, size=64, zombie=False, stitches=False, glow_eyes=None, scars=False):
     """臉：膚色底＋眉、眼、鼻影、嘴。PS1 角色的五官就是畫在貼圖上的。
 
     座標：u 0..1 = 臉的左到右，v 0..1 = 下巴到頭頂（貼圖的上方是頭頂）。
@@ -106,6 +119,16 @@ def face_texture(path, skin, brow, eye, lip, stubble=None, size=64, zombie=False
         rect(0.60, 0.52, 0.69, 0.56, "#b8b8a0", 0.9)
         rect(0.38, 0.12, 0.64, 0.28, "#4a0a08", 0.6)
         rect(0.42, 0.22, 0.58, 0.27, "#120806", 0.9)
+    if glow_eyes:      # 發光的眼睛（追擊者）
+        rect(0.30, 0.52, 0.42, 0.565, glow_eyes)
+        rect(0.58, 0.52, 0.70, 0.565, glow_eyes)
+    if stitches:       # 縫起來的嘴：一條橫線＋直的縫線
+        rect(0.34, 0.245, 0.66, 0.265, "#0e0806")
+        for x0 in (0.36, 0.42, 0.48, 0.54, 0.6):
+            rect(x0, 0.22, x0 + 0.02, 0.29, "#0e0806")
+    if scars:          # 臉頰的刀疤
+        rect(0.62, 0.3, 0.66, 0.5, "#3a0a08", 0.8)
+        rect(0.2, 0.36, 0.3, 0.38, "#3a0a08", 0.8)
     Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).save(path)
     return path
 
@@ -256,14 +279,15 @@ for s in ("L", "R"):
     ]
 
 
-def make_armature(name="rig", joints=None):
+def make_armature(name="rig", joints=None, bones=None):
     joints = joints or J
+    bones = bones or BONES
     ad = bpy.data.armatures.new(name)
     ob = bpy.data.objects.new(name, ad)
     bpy.context.scene.collection.objects.link(ob)
     bpy.context.view_layer.objects.active = ob
     bpy.ops.object.mode_set(mode="EDIT")
-    for (bn, h, t, parent) in BONES:
+    for (bn, h, t, parent) in bones:
         b = ad.edit_bones.new(bn)
         b.head = joints[h]
         b.tail = joints[t]
@@ -323,12 +347,121 @@ def legs(C, P, M_thigh, M_shin, M_boot, joints=None, thick=1.0, boot_top=0.6, sh
         P(C.block(f"foot.{s}", (x - 0.046 * t, toe, 0.0), (x + 0.046 * t, 0.05, shoe_h), M_boot), f"foot.{s}")
 
 
+def scale_part(ob, factor, center):
+    """把一個部件以 center 為中心放大（直接改頂點，不動物件的變換）。"""
+    c = Vector(center)
+    for v in ob.data.vertices:
+        v.co = c + (v.co - c) * factor
+
+
 def finish(C, rig, parts):
     for ob, bone in parts:
         for poly in ob.data.polygons:
             poly.use_smooth = False
         C.attach(ob, rig, bone)
     return rig, [p[0] for p in parts]
+
+
+# ======================================================================
+# 人形角色的共用建模：只要描述「穿什麼」
+# ======================================================================
+
+def humanoid(C, prefix, M, joints=None, build=None, o=None):
+    """標準人形：骨盆、軀幹、（外套）、脖子、頭、頭髮、手臂、腿。
+
+    M：材質字典，需要的鍵：
+      pants, shirt, skin, face, hair, shoes
+      可選：coat（外套）、sleeve（袖子，預設 = coat 或 shirt）、forearm、hand、thigh、shin
+    o：選項字典（都有預設值）：
+      torso_w 軀幹寬度倍率、arm/leg 粗細、boot_top 鞋子高度、coat_keep 外套保留哪些面、
+      hair = "short" | "long" | "bald" | "patchy" | "bun" | None、skirt (長度, 寬度)
+    build：額外的部件 build(P, M, J) → 加帽子、配件
+    回傳 (rig, parts, P)，最後呼叫 C.finish(C, rig, parts)。
+    """
+    o = o or {}
+    J = dict(joints or C.J)
+    sw = o.get("torso_w", 1.0) * o.get("chest", 1.0) ** 0.5
+    if sw != 1.0:                 # 軀幹變寬時，肩膀以下的關節跟著往外移
+        for k_, (x, y, z) in list(J.items()):
+            if k_.split(".")[0] in ("shoulder", "elbow", "wrist", "hand_end"):
+                J[k_] = (x * sw, y, z)
+    rig = C.make_armature(prefix + "_rig", joints=J)
+    parts = []
+    P = lambda ob, bone: parts.append((ob, bone))
+    loft, block = C.loft, C.block
+    w = o.get("torso_w", 1.0)
+    d = o.get("torso_d", 1.0)
+    # 骨盆
+    P(loft("pelvis", [(0.0, 0, 0, 0.17 * w, 0.12 * d), (0.5, 0, 0, 0.175 * w, 0.126 * d), (1.0, 0, 0, 0.165 * w, 0.115 * d)],
+           M["pants"], (0, 0, 0.86), (0, 0, 1.06)), "pelvis")
+    if "skirt" in o:
+        L, R = o["skirt"]
+        P(loft("skirt", [(0.0, 0, 0, R, R * 0.85), (0.6, 0, 0, R * 0.85, R * 0.72), (1.0, 0, 0, 0.17 * w, 0.125 * d)],
+               M.get("skirt", M["pants"]), (0, 0, 1.04 - L), (0, 0, 1.06), cap0=False, keep=o.get("skirt_keep")), "pelvis")
+    # 軀幹（胸的寬度 chest 可以調：健身房員工比較壯）
+    ch = o.get("chest", 1.0)
+    torso = [(0.0, 0, 0, 0.165 * w, 0.118 * d), (0.3, 0, -0.005, 0.17 * w, 0.122 * d), (0.7, 0, -0.01, 0.185 * w * ch, 0.13 * d * ch),
+             (0.9, 0, 0, 0.185 * w * ch, 0.118 * d), (1.0, 0, 0, 0.11, 0.075)]
+    has_coat = "coat" in M
+    P(loft("torso", torso, M["coat"] if has_coat else M["shirt"], (0, 0, 1.0), (0, 0, 1.5)), "spine")
+    if has_coat:      # 外套裡面只露出胸前的一條襯衫
+        P(block("shirt_front", (-0.055, -0.15 * d, 1.22), (0.055, -0.13 * d, 1.48), M["shirt"]), "spine")
+    if "coat" in M:
+        z0 = o.get("coat_bottom", 0.92)
+        coat = [(0.0, 0, 0, 0.185 * w, 0.138 * d), (0.35, 0, -0.008, 0.19 * w, 0.142 * d), (0.75, 0, -0.01, 0.195 * w * ch, 0.142 * d * ch), (0.95, 0, 0, 0.17 * w, 0.125 * d)]
+        P(loft("coat", coat, M["coat"], (0, 0, z0), (0, 0, 1.47), cap0=False, cap1=False, keep=o.get("coat_keep")), "spine")
+    P(loft("collar", [(0, 0, 0, 0.072, 0.068), (1, 0, 0.004, 0.08, 0.075)], M.get("collar", M["shirt"]), (0, 0, 1.47), (0, 0, 1.52),
+           cap0=False, cap1=False), "spine")
+    # 頭
+    hs = o.get("head", 1.0)
+    P(loft("neck", [(0, 0, 0, 0.05 * hs, 0.05 * hs), (1, 0, 0, 0.046 * hs, 0.046 * hs)], M["skin"], (0, 0, 1.48), (0, 0, 1.6)), "head")
+    top = 1.58 + 0.24 * hs
+    head_r = [(0.0, 0, -0.01, 0.044 * hs, 0.05 * hs), (0.12, 0, -0.025, 0.066 * hs, 0.074 * hs), (0.35, 0, -0.01, 0.082 * hs, 0.098 * hs),
+              (0.6, 0, 0, 0.087 * hs, 0.104 * hs), (0.85, 0, 0.01, 0.083 * hs, 0.098 * hs), (1.0, 0, 0.01, 0.05 * hs, 0.058 * hs)]
+    P(loft("head", head_r, M["face"], (0, -0.01, 1.58), (0, -0.01, top), uv_mode="face",
+           face_box=(-0.083 * hs, 0.083 * hs, 1.58, 1.58 + 0.21 * hs)), "head")
+    P(block("nose", (-0.011 * hs, -0.104 * hs - 0.02, 1.58 + 0.075 * hs), (0.011 * hs, -0.1 * hs, 1.58 + 0.12 * hs), M["skin"]), "head")
+    hair = o.get("hair", "short")
+    hz = 1.58 + 0.18 * hs
+    if hair in ("short", "patchy", "long", "bun"):
+        keep = (lambda c: not (c.x > 0.02 and c.y < 0.0)) if hair == "patchy" else None
+        cap = [(0.0, 0, 0.0, 0.092 * hs, 0.108 * hs), (0.45, 0, -0.003, 0.088 * hs, 0.102 * hs), (1.0, 0, -0.005, 0.05 * hs, 0.06 * hs)]
+        P(loft("hair_cap", cap, M["hair"], (0, -0.012, hz), (0, -0.012, top + 0.03), cap0=False, keep=keep), "head")
+        low = 1.5 if hair == "long" else 1.61
+        back = [(0.0, 0, -0.012, 0.075 * hs, 0.085 * hs), (0.4, 0, -0.012, 0.09 * hs, 0.104 * hs), (1.0, 0, -0.005, 0.092 * hs, 0.107 * hs)]
+        P(loft("hair_back", back, M["hair"], (0, -0.01, low), (0, -0.01, hz + 0.01), cap0=False, cap1=False,
+               keep=lambda c: c.y > -0.03), "head")
+        if hair == "long":
+            for sg in (1, -1):
+                x0, x1 = sorted((sg * 0.07 * hs, sg * 0.1 * hs))
+                P(block("side_hair", (x0, -0.07, 1.47), (x1, 0.04, 1.78), M["hair"]), "head")
+        if hair == "bun":
+            P(loft("bun", [(0, 0, 0, 0.04, 0.04), (0.5, 0, 0, 0.05, 0.05), (1, 0, 0, 0.02, 0.02)], M["hair"], (0, 0.1, 1.74), (0, 0.17, 1.78)), "head")
+    # 手臂、腿
+    C.arms(C, P, M.get("sleeve", M.get("coat", M["shirt"])), M.get("forearm", M.get("sleeve", M.get("coat", M["shirt"]))),
+           M.get("hand", M["skin"]), joints=J, thick=o.get("arm", 1.0))
+    C.legs(C, P, M.get("thigh", M["pants"]), M.get("shin", M["pants"]), M["shoes"], joints=J, thick=o.get("leg", 1.0),
+           boot_top=o.get("boot_top", 0.88), shoe_h=o.get("shoe_h", 0.08), toe=o.get("toe", -0.15))
+    if build:
+        build(P, M, J)
+    return rig, parts, P
+
+
+def mats(C, prefix, spec):
+    """spec：{名稱: (顏色, 雜訊, 種子, {其他參數})} → 材質字典。face 另外處理。"""
+    out = {}
+    for k_, v in spec.items():
+        color, noise, seed = v[:3]
+        kw = v[3] if len(v) > 3 else {}
+        out[k_] = C.tex_mat(f"{prefix}_{k_}", C.char_texture(f"{prefix}_{k_}", color, noise, seed=seed, **kw))
+    return out
+
+
+def zombie_face(C, prefix, skin, **kw):
+    """殭屍的臉；kw 可以加 stitches / glow_eyes / scars。"""
+    path = os.path.join(C.ROOT, "build", "chartex", f"{prefix}_face.png")
+    C.face_texture(path, skin, "#2a2620", "#1a1a12", "#3a2a24", zombie=True, **kw)
+    return C.tex_mat(f"{prefix}_face", path)
 
 
 # ======================================================================
@@ -340,7 +473,8 @@ def pose(rig, angles, loc=(0, 0, 0)):
     for pb in rig.pose.bones:
         a = angles.get(pb.name, (0, 0, 0))
         pb.rotation_euler = Euler([math.radians(v) for v in a], "XYZ")
-    rig.pose.bones["pelvis"].location = loc
+    root = next(pb for pb in rig.pose.bones if pb.parent is None)    # 人形是 pelvis，四足是 body
+    root.location = loc
     bpy.context.view_layer.update()
 
 
@@ -479,6 +613,70 @@ ZOMBIE_ANIMS = {
     "grab": (zombie_grab_pose, 4),
 }
 
+# ---------------- 頭目用的動作
+def heavy_walk_pose(t):
+    """沉重、穩定的步伐（追擊者、主廚）：擺幅小、不拖腳、身體幾乎不晃。"""
+    ph = t * 2 * math.pi
+    th = 18 * math.sin(ph)
+    return {
+        "pelvis": (0, 0, 2 * math.sin(ph)), "spine": (4, 0, -3 * math.sin(ph)), "head": (-2, 0, 0),
+        "thigh.L": (-th, 0, 0), "thigh.R": (th, 0, 0),
+        "shin.L": (28 * max(0, math.sin(ph + 0.9)) + 4, 0, 0), "shin.R": (28 * max(0, math.sin(ph + 0.9 + math.pi)) + 4, 0, 0),
+        "upperarm.L": (10 * math.sin(ph), 0, 10), "upperarm.R": (-10 * math.sin(ph), 0, -10),
+        "forearm.L": (-12, 0, 0), "forearm.R": (-12, 0, 0),
+    }, (0, 0, -0.01 * abs(math.cos(ph)))
+
+
+def chop_pose(t):
+    """由上往下的揮砍（右手）：舉高 → 砍下。"""
+    k = t
+    up = math.sin(min(1, k * 2) * math.pi / 2)            # 前半舉起
+    down = max(0.0, (k - 0.5) * 2)                         # 後半砍下
+    a = -150 * up + 170 * down
+    return {
+        "spine": (6 + 20 * down, 0, 15 - 25 * down), "head": (-6, 0, 0),
+        "upperarm.R": (a, 0, -15), "forearm.R": (-30 + 20 * down, 0, 0),
+        "upperarm.L": (-30, 0, 20), "forearm.L": (-40, 0, 0),
+        "thigh.L": (-15, 0, 0), "shin.L": (15, 0, 0), "thigh.R": (10, 0, 0),
+    }, (0, -0.05 * down, -0.03 * down)
+
+
+def punch_pose(t):
+    """重拳（右手）：收拳 → 打出。"""
+    k = math.sin(t * math.pi)
+    return {
+        "spine": (8, 0, 20 - 45 * k), "head": (0, 0, -10 * k),
+        "upperarm.R": (-20 - 65 * k, 0, -25 + 20 * k), "forearm.R": (-90 + 85 * k, 0, 0),
+        "upperarm.L": (-25, 0, 15), "forearm.L": (-80, 0, 0),
+        "thigh.L": (-18 * k, 0, 0), "shin.L": (12 * k, 0, 0), "thigh.R": (12 * k, 0, 0),
+    }, (0, -0.08 * k, -0.02)
+
+
+def throw_pose(t):
+    """把東西舉過頭丟出去（雙手）。"""
+    up = math.sin(min(1, t * 1.6) * math.pi / 2)
+    rel = max(0.0, (t - 0.6) / 0.4)
+    a = -160 * up + 120 * rel
+    return {
+        "spine": (-10 * up + 30 * rel, 0, 0), "head": (-10 * up, 0, 0),
+        "upperarm.L": (a, 0, 15), "upperarm.R": (a, 0, -15),
+        "forearm.L": (-40, 0, 0), "forearm.R": (-40, 0, 0),
+        "thigh.L": (-10 * rel, 0, 0), "shin.L": (10 * rel, 0, 0),
+    }, (0, 0, 0)
+
+
+def knockdown_pose(t):
+    """被擊倒：跪下 → 雙手撐地（追擊者會再站起來）。"""
+    k = math.sin(min(1, t * 1.2) * math.pi / 2)
+    return {
+        "pelvis": (20 * k, 0, 0), "spine": (35 * k, 0, 0), "head": (20 * k, 0, 0),
+        "thigh.L": (-80 * k, 0, 0), "shin.L": (95 * k, 0, 0),
+        "thigh.R": (-20 * k, 0, 0), "shin.R": (110 * k, 0, 0),
+        "upperarm.L": (-40 * k, 0, 10), "upperarm.R": (-40 * k, 0, -10),
+        "forearm.L": (-20 * k, 0, 0), "forearm.R": (-20 * k, 0, 0),
+    }, (0, -0.1 * k, -0.45 * k)
+
+
 
 
 # ======================================================================
@@ -487,6 +685,7 @@ ZOMBIE_ANIMS = {
 
 SPRITE_W, SPRITE_H = 64, 128          # 一格 sprite 的畫布（像素）
 PIX_PER_M = 62                        # 1.82 m ≈ 113 px（站在畫面最前景時的大小）
+CENTER_Z = 0.91                       # sprite 攝影機對準的高度（大型頭目會調高）
 
 
 def setup_sprite_render():
@@ -527,9 +726,9 @@ def place_sprite_cam(cam, direction, elevation=18):
     # 角色面向 -y；攝影機在角色前方（-y）時，看到的是正面
     cx = math.sin(yaw) * math.cos(el) * dist
     cy = -math.cos(yaw) * math.cos(el) * dist
-    cz = math.sin(el) * dist + 0.91
+    cz = math.sin(el) * dist + CENTER_Z
     cam.location = (cx, cy, cz)
-    d = Vector((0, 0, 0.91)) - cam.location
+    d = Vector((0, 0, CENTER_Z)) - cam.location
     cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
 
 
@@ -574,7 +773,7 @@ def render_sprites(name, rig, out_dir, dirs=range(8), anims=ANIMS):
     meta = {
         "frame": [SPRITE_W, SPRITE_H],
         # 腳底在 sprite 裡的位置（引擎把這個點放到角色在地面上的投影位置）
-        "pivot": [SPRITE_W // 2, round(SPRITE_H / 2 + 0.91 * math.cos(math.radians(18)) * PIX_PER_M)],
+        "pivot": [SPRITE_W // 2, round(SPRITE_H / 2 + CENTER_Z * math.cos(math.radians(18)) * PIX_PER_M)],
         "pixels_per_meter": PIX_PER_M,
         "directions": "0 = facing camera, then clockwise in 45 deg steps (2 = facing screen right)",
         "rows": [{"anim": an, "dir": d, "frames": anims[an][1]} for (an, d) in rows],
@@ -604,9 +803,14 @@ def main():
     sc = getattr(mod, "HEIGHT", 1.82) / 1.82
     rig.scale = (sc, sc, sc)
     bpy.context.view_layer.update()
+    global SPRITE_W, SPRITE_H, CENTER_Z
+    SPRITE_W, SPRITE_H = getattr(mod, "FRAME", (64, 128))      # 角色可以指定自己的 sprite 畫布
+    CENTER_Z = getattr(mod, "CENTER_Z", 0.91)
     anims = getattr(mod, "ANIMS", "human")
     if isinstance(anims, str):
         anims = {"human": HUMAN_ANIMS, "zombie": ZOMBIE_ANIMS}[anims]
+    elif callable(anims):
+        anims = anims(sys.modules[__name__])        # 角色檔可以用函式組合自己的動作
     out_dir = os.path.join(ROOT, "art", "characters", name)
     frames = render_sprites(name, rig, out_dir, anims=anims)
     # 預覽：第一個動作的 8 方向＋每個動作在方向 1 的所有格，放大 3 倍
