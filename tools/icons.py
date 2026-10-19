@@ -160,19 +160,77 @@ def shells(k):
         k.cyl((0, 0, 0), 0.0175, 0.02, brass, seg=8, uv=0.1, M=Mi, name="base")
 
 
+# ---------------- 第 1–2 章的道具（2026-10-19）
+
+def canned_food(k):
+    tin = mat("can_tin", color=(0.55, 0.55, 0.56), metal=0.6, rough=0.35)
+    label = mat("can_label", color=(0.55, 0.12, 0.08), rough=0.6)
+    k.cyl((0, 0, -0.07), 0.055, 0.14, tin, seg=10, uv=0.2, name="can")
+    k.cyl((0, 0, -0.05), 0.0565, 0.1, label, seg=10, uv=0.2, cap=False, name="label")
+    k.cyl((0, 0, -0.02), 0.057, 0.03, mat("can_band", color=(0.85, 0.75, 0.3), rough=0.6), seg=10, uv=0.1, cap=False, name="band")
+
+
+def cast_iron_pan(k):
+    iron = mat("pan_iron", color=(0.06, 0.06, 0.065), metal=0.6, rough=0.5)
+    k.cyl((-0.04, 0, -0.02), 0.1, 0.03, iron, seg=12, uv=0.2, name="pan")
+    k.box((0.05, -0.012, 0.0), (0.2, 0.012, 0.016), iron, uv=0.1, name="handle")
+
+
+def barbell_plate(k):
+    iron = mat("plate_iron", color=(0.08, 0.08, 0.09), metal=0.5, rough=0.5)
+    k.cyl((0, 0, -0.015), 0.12, 0.03, iron, seg=12, uv=0.2, M=rotX(90), name="plate")
+    k.cyl((0, 0, -0.017), 0.025, 0.034, mat("plate_hole", color=(0.0, 0.0, 0.0)), seg=8, uv=0.1, M=rotX(90), name="hole")
+    k.box((-0.05, -0.018, 0.06), (0.05, -0.016, 0.08), mat("plate_text", color=(0.75, 0.75, 0.7)), uv=0.1, name="txt")
+
+
+def valve_handle(k):
+    m = mat("valve_red_icon", color=(0.6, 0.08, 0.05), metal=0.5, rough=0.4)
+    k.cyl((0, 0, -0.01), 0.11, 0.02, m, seg=10, uv=0.2, cap=False, name="rim")
+    for a in (0, 60, 120):
+        k.box((-0.11, -0.008, -0.008), (0.11, 0.008, 0.008), m, uv=0.1, M=rotZ(a), name="spoke")
+    k.cyl((0, 0, -0.015), 0.025, 0.03, m, seg=8, uv=0.1, name="hub")
+
+
+def room_card(k):
+    plastic = mat("card_gold", color=(0.7, 0.55, 0.2), metal=0.4, rough=0.35)
+    k.box((-0.1, -0.003, -0.063), (0.1, 0.003, 0.063), plastic, uv=0.2, name="card")
+    k.box((-0.09, -0.0035, 0.02), (0.09, 0.0035, 0.04), mat("card_strip", color=(0.05, 0.05, 0.05)), uv=0.1, name="strip")
+    k.box((-0.08, -0.0035, -0.045), (-0.02, 0.0035, -0.015), mat("card_num", color=(0.15, 0.1, 0.05)), uv=0.1, name="num")
+
+
+def locker_key(k):
+    steel = mat("key_steel", color=(0.6, 0.6, 0.62), metal=0.8, rough=0.3)
+    tag = mat("key_tag", color=(0.15, 0.3, 0.2), rough=0.5)
+    k.box((-0.11, -0.006, -0.03), (-0.03, 0.006, 0.03), steel, uv=0.1, name="head")
+    k.box((-0.03, -0.006, -0.008), (0.1, 0.006, 0.008), steel, uv=0.1, name="shaft")
+    for x in (0.03, 0.06, 0.085):
+        k.box((x, -0.006, -0.025), (x + 0.012, 0.006, -0.008), steel, uv=0.1, name="tooth")
+    k.cyl((-0.17, 0, -0.005), 0.045, 0.01, tag, seg=8, uv=0.1, M=rotX(90), name="tag")
+
+
+def document(k):
+    paper = mat("doc_paper", "paper")
+    k.box((-0.09, -0.12, -0.003), (0.09, 0.12, 0.003), paper, uv=0.25, M=rotX(-60), name="page")
+    k.box((-0.08, -0.11, 0.0), (0.1, 0.13, 0.002), paper, uv=0.25, M=rotX(-60) @ Matrix.Translation((0.02, 0.01, -0.006)) @ rotZ(8), name="page2")
+    k.box((-0.09, 0.09, 0.0), (-0.07, 0.12, 0.006), mat("clip", color=(0.6, 0.6, 0.62), metal=0.8), uv=0.1, M=rotX(-60), name="clip")
+
+
 ICONS = {
     "handgun": handgun, "shotgun": shotgun, "shells": shells, "flashlight": flashlight,
     "bandage": bandage, "painkillers": painkillers, "ink_ribbon": ink_ribbon, "rusty_key": rusty_key,
     "medal_silver": medal((0.6, 0.6, 0.62), "medal_silver"), "medal_gold": medal((0.85, 0.65, 0.2), "medal_gold"),
     "medal_platinum": medal((0.78, 0.8, 0.84), "medal_platinum"), "medal_diamond": medal((0.6, 0.85, 1.0), "medal_diamond"),
     "id_card": id_card, "ledger": ledger, "herbicide": herbicide, "crowbar": crowbar, "lighter": lighter,
+    "canned_food": canned_food, "cast_iron_pan": cast_iron_pan, "barbell_plate": barbell_plate, "valve_handle": valve_handle,
+    "room_card": room_card, "locker_key": locker_key, "document": document,
 }
 
 
 # 小東西放大一點（正交攝影機的視野寬度，公尺）
 SCALE = {"shells": 0.24, "lighter": 0.16, "painkillers": 0.3, "ink_ribbon": 0.3, "rusty_key": 0.34,
          "medal_silver": 0.34, "medal_gold": 0.34, "medal_platinum": 0.34, "medal_diamond": 0.34, "bandage": 0.34,
-         "id_card": 0.3, "herbicide": 0.3}
+         "id_card": 0.3, "herbicide": 0.3, "canned_food": 0.28, "valve_handle": 0.3, "room_card": 0.3,
+         "locker_key": 0.36, "document": 0.34, "barbell_plate": 0.32}
 
 
 def render_icon(name, fn, out_dir):
