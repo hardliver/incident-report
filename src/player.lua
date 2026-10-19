@@ -2,7 +2,8 @@
 --
 -- 操作（坦克式）：
 --   上：往前走　下：後退　左右：轉身　按住 B＋上：跑
---   X：切換「一直跑」（開著的時候，往前走就是跑）
+--   X：按一下開始跑，再按一下變回走路；方向鍵全部放開也會變回走路
+--     （下次再按方向鍵是走路，要跑再按一次 X）
 --   按住 L：舉槍瞄準（自動轉向最近的殭屍），瞄準時按 R 開槍、左右微調方向、
 --     按住下＝往地上瞄準（打趴在地上的殭屍、打腳），按住上＝往上瞄準（打頭，比較容易打中要害）
 --     （和新版惡靈古堡一樣；鍵盤是 Q 舉槍、E 開槍）
@@ -194,11 +195,9 @@ function P.update(p)
         return nil
     end
 
-    -- X：一直跑（開／關）
-    if U.pressed(BX) then
-        p.always_run = not p.always_run
-        show_hint(p.always_run and "一直跑：開" or "一直跑：關")
-    end
+    -- X：跑步開關。方向鍵全部放開（停下來）就自動變回走路
+    if U.pressed(BX) then p.running = not p.running end
+    if not (U.held(UP) or U.held(DOWN) or U.held(LEFT) or U.held(RIGHT)) then p.running = false end
 
     local has_gun = inv_has("handgun") ~= nil
     local danger = P.status(p) == "danger"
@@ -230,7 +229,7 @@ function P.update(p)
     if U.held(RIGHT) then p.yaw = (p.yaw + TURN) % 360 end
     if U.held(UP) then
         if danger then speed = LIMP
-        elseif U.held(BB) or p.always_run then speed = RUN
+        elseif U.held(BB) or p.running then speed = RUN
         else speed = WALK end
     elseif U.held(DOWN) then
         speed = -BACK
