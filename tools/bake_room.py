@@ -71,10 +71,13 @@ def make_camera(c):
 
 
 def depth_map(scene, cam, occluders):
-    """對每個像素從攝影機射一條光線（ray cast），找出打到的物件。
+    """對每個像素從攝影機射一條光線（ray cast），記錄打到的第一個東西有多遠（沿攝影機前方的距離，公分）。
 
-    打到「前景物件」(occluder) 的像素記錄深度（沿攝影機前方的距離，公分）。
-    引擎畫角色時：如果某個像素的前景深度 < 角色的深度，就不畫那個像素（角色被擋住）。
+    引擎畫角色時：如果某個像素的深度 < 角色的深度，就不畫那個像素（角色被擋住）。
+    所有東西都記（牆、地板、家具）：比角色遠的不會擋到角色，所以全部記下來也沒關係，
+    而且不會再發生「忘了把書櫃標成前景，角色畫在書櫃前面」這種錯誤。
+    遊戲比較深度時留 25 公分的餘裕（腳邊的地板不會把腳擋掉）。
+    hits 只用在預覽圖：標出 occluder（設計上的前景物件）。
     """
     dg = bpy.context.evaluated_depsgraph_get()
     frame = cam.data.view_frame(scene=scene)       # 攝影機座標中的四個角
@@ -93,10 +96,10 @@ def depth_map(scene, cam, occluders):
             cx = left + (px + 0.5) / W * (right - left)
             d = (R @ Vector((cx, cy, z))).normalized()
             ok, loc, _n, _i, ob, _m = scene.ray_cast(dg, origin, d)
-            if ok and ob is not None and ob.name in occluders:
+            if ok and ob is not None:
                 depth = (loc - origin).dot(fwd)
                 out[py, px] = min(65535, max(1, int(depth * 100)))
-                hits[py, px] = True
+                hits[py, px] = ob.name in occluders
     return out, hits
 
 

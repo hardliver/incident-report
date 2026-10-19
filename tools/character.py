@@ -669,6 +669,71 @@ def limp_pose(t):
     return ang, (loc[0], loc[1], loc[2] - 0.03)
 
 
+def prone_base(k=1.0):
+    """趴在地上（倒地動作的最後一格）。"""
+    ang, loc = fall_pose(1.0)
+    return dict(ang), loc
+
+
+def crawl_pose(t):
+    """沒了腳力、趴在地上用手爬：兩隻手輪流往前抓地，身體拖著走，頭抬起來看著目標。"""
+    ang, loc = prone_base()
+    ph = t * 2 * math.pi
+    ang["head"] = (-55, 0, 6 * math.sin(ph))
+    ang["spine"] = (-14, 0, 6 * math.sin(ph))
+    ang["upperarm.L"] = (-150 + 35 * math.sin(ph), 0, 20)
+    ang["upperarm.R"] = (-150 - 35 * math.sin(ph), 0, -20)
+    ang["forearm.L"] = (-30 - 30 * max(0, math.sin(ph)), 0, 0)
+    ang["forearm.R"] = (-30 - 30 * max(0, -math.sin(ph)), 0, 0)
+    ang["thigh.L"] = (6 * math.sin(ph), 0, 4)
+    ang["thigh.R"] = (-6 * math.sin(ph), 0, -4)
+    return ang, (loc[0], loc[1] + 0.03 * math.sin(ph), loc[2])
+
+
+def reach_pose(t):
+    """趴著抓腳：上半身撐起來，一隻手往前上方伸、抓住，頭往前咬。"""
+    ang, loc = prone_base()
+    k = 1.0 if t < 0.5 else 0.7
+    ang["spine"] = (-30 * k, 0, 0)
+    ang["head"] = (-50 * k, 0, 0)
+    ang["upperarm.R"] = (-165, 0, -8)
+    ang["forearm.R"] = (-20 * k, 0, 0)
+    ang["upperarm.L"] = (-110, 0, 25)
+    ang["forearm.L"] = (-60, 0, 0)
+    return ang, (loc[0], loc[1], loc[2] + 0.05 * k)
+
+
+def aim_down_pose(t=0.0):
+    """往下瞄準（地上的殭屍）：上身前傾、雙手往下斜。"""
+    ang, loc = aim_pose()
+    ang = dict(ang)
+    ang["spine"] = (18, 0, 8)
+    ang["head"] = (20, 0, -6)
+    ang["upperarm.R"] = (-48, 0, 18)
+    ang["upperarm.L"] = (-44, 0, -28)
+    return ang, loc
+
+
+def shoot_down_pose(t):
+    ang, loc = aim_down_pose()
+    kick = 1.0 if t < 0.5 else 0.3
+    ang["upperarm.R"] = (-48 - 12 * kick, 0, 18)
+    ang["upperarm.L"] = (-44 - 10 * kick, 0, -28)
+    return ang, loc
+
+
+def struggle_pose(t):
+    """腳被抓住：右腳往後用力甩、身體往前失去平衡、雙手張開。"""
+    k = 1.0 if t < 0.5 else -0.4
+    return {
+        "spine": (14, 0, 10 * k), "head": (24, 0, 0),
+        "thigh.R": (35 * k, 0, 0), "shin.R": (40 + 20 * k, 0, 0),
+        "thigh.L": (-12, 0, 0), "shin.L": (14, 0, 0),
+        "upperarm.L": (-30, 0, 45), "upperarm.R": (-25, 0, -45),
+        "forearm.L": (-30, 0, 0), "forearm.R": (-30, 0, 0),
+    }, (0, 0, -0.03)
+
+
 HUMAN_ANIMS = {
     "idle": (idle_pose, 1),
     "walk": (walk_pose, 8),
@@ -678,6 +743,9 @@ HUMAN_ANIMS = {
     "shoot": (shoot_pose, 2),
     "limp": (limp_pose, 8),
     "down": (fall_pose, 6),
+    "aim_down": (aim_down_pose, 1),
+    "shoot_down": (shoot_down_pose, 2),
+    "struggle": (struggle_pose, 2),
 }
 ZOMBIE_ANIMS = {
     "idle": (zombie_idle_pose, 2),
@@ -686,6 +754,8 @@ ZOMBIE_ANIMS = {
     "hurt": (zombie_hurt_pose, 1),
     "down": (fall_pose, 6),
     "feed": (feed_pose, 2),
+    "crawl": (crawl_pose, 6),
+    "reach": (reach_pose, 2),
 }
 
 # ---------------- 頭目用的動作

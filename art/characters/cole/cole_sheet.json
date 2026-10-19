@@ -329,6 +329,126 @@
    "anim": "down",
    "dir": 7,
    "frames": 6
+  },
+  {
+   "anim": "aim_down",
+   "dir": 0,
+   "frames": 1
+  },
+  {
+   "anim": "aim_down",
+   "dir": 1,
+   "frames": 1
+  },
+  {
+   "anim": "aim_down",
+   "dir": 2,
+   "frames": 1
+  },
+  {
+   "anim": "aim_down",
+   "dir": 3,
+   "frames": 1
+  },
+  {
+   "anim": "aim_down",
+   "dir": 4,
+   "frames": 1
+  },
+  {
+   "anim": "aim_down",
+   "dir": 5,
+   "frames": 1
+  },
+  {
+   "anim": "aim_down",
+   "dir": 6,
+   "frames": 1
+  },
+  {
+   "anim": "aim_down",
+   "dir": 7,
+   "frames": 1
+  },
+  {
+   "anim": "shoot_down",
+   "dir": 0,
+   "frames": 2
+  },
+  {
+   "anim": "shoot_down",
+   "dir": 1,
+   "frames": 2
+  },
+  {
+   "anim": "shoot_down",
+   "dir": 2,
+   "frames": 2
+  },
+  {
+   "anim": "shoot_down",
+   "dir": 3,
+   "frames": 2
+  },
+  {
+   "anim": "shoot_down",
+   "dir": 4,
+   "frames": 2
+  },
+  {
+   "anim": "shoot_down",
+   "dir": 5,
+   "frames": 2
+  },
+  {
+   "anim": "shoot_down",
+   "dir": 6,
+   "frames": 2
+  },
+  {
+   "anim": "shoot_down",
+   "dir": 7,
+   "frames": 2
+  },
+  {
+   "anim": "struggle",
+   "dir": 0,
+   "frames": 2
+  },
+  {
+   "anim": "struggle",
+   "dir": 1,
+   "frames": 2
+  },
+  {
+   "anim": "struggle",
+   "dir": 2,
+   "frames": 2
+  },
+  {
+   "anim": "struggle",
+   "dir": 3,
+   "frames": 2
+  },
+  {
+   "anim": "struggle",
+   "dir": 4,
+   "frames": 2
+  },
+  {
+   "anim": "struggle",
+   "dir": 5,
+   "frames": 2
+  },
+  {
+   "anim": "struggle",
+   "dir": 6,
+   "frames": 2
+  },
+  {
+   "anim": "struggle",
+   "dir": 7,
+   "frames": 2
   }
  ]
 }

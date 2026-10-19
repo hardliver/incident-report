@@ -276,7 +276,9 @@ def room_doors(rj, room):
 
 
 def camera_grid_lua(room):
-    """鏡頭格子 → Lua：每一層一個字串，每格 2 個字元（看得到的鏡頭的位元遮罩、最好的鏡頭），字元 = 48 + 數值。"""
+    """鏡頭格子 → Lua：每一層一個字串，每格 4 個字元：
+    看得到的鏡頭的位元遮罩（每 5 位一個字元，共 3 個：最多 15 個鏡頭）、最好的鏡頭編號。
+    字元 = 48 + 數值（只用到 '0'–'O'，沒有引號、反斜線）。"""
     grids, _cells = room.grid
     levels = []
     for lv, g in sorted(grids.items()):
@@ -284,8 +286,8 @@ def camera_grid_lua(room):
         for j in range(room.ny):
             for i in range(room.nx):
                 mask, best = g.get((i, j), (0, 0))
-                assert mask < 79 and best < 79
-                chars.append(chr(48 + mask) + chr(48 + best))
+                assert mask < 32768 and best < 32
+                chars.append(chr(48 + (mask & 31)) + chr(48 + ((mask >> 5) & 31)) + chr(48 + (mask >> 10)) + chr(48 + best))
         # 長字串 [==[ … ]==]：裡面的 \ 和 " 不會被當成跳脫字元
         levels.append(f'[{lv}]=[==[{"".join(chars)}]==]')
     return (f'{{x0={mm(room.x0)},y0={mm(room.y0)},nx={room.nx},ny={room.ny},cell={mm(roomgeo.CELL)},'
@@ -370,6 +372,35 @@ def icon_entries(entries, palimg, lua_spr):
     return names
 
 
+def fx_entries(entries, palimg, lua_spr):
+    """特效：地上的一灘血，4 格（越來越大）。俯視的橢圓、邊緣不規則，中心比較暗。"""
+    rng = np.random.default_rng(7)
+    frames = []
+    angles = np.linspace(0, 2 * np.pi, 24, endpoint=False)
+    wobble = 1 + 0.18 * rng.standard_normal(24)          # 邊緣的凹凸（每一格用同一組，看起來是同一灘血在擴大）
+    for r_m in (0.25, 0.45, 0.65, 0.85):
+        rx = r_m * 62
+        ry = rx * 0.45                                     # 從斜上方看：橢圓
+        w, h = int(rx * 2.6) + 2, int(ry * 2.6) + 2
+        yy, xx = np.mgrid[0:h, 0:w]
+        dx, dy = (xx - w / 2) / rx, (yy - h / 2) / ry
+        ang = np.arctan2(dy, dx) % (2 * np.pi)
+        rr = np.interp(ang, np.append(angles, 2 * np.pi), np.append(wobble, wobble[0]))
+        dist = np.sqrt(dx * dx + dy * dy) / rr
+        rgba = np.zeros((h, w, 4), np.uint8)
+        inside = dist < 1.0
+        shade = np.clip(1.0 - dist, 0, 1)
+        rgba[..., 0] = (75 - 40 * shade).astype(np.uint8)
+        rgba[..., 1] = (8 - 4 * shade).astype(np.uint8)
+        rgba[..., 2] = (8 - 4 * shade).astype(np.uint8)
+        rgba[..., 3] = np.where(inside, 255, 0)
+        idx = map_actor(Image.fromarray(rgba, "RGBA"), palimg)
+        px, x0, y0 = crop(idx)
+        frames.append((px, x0 - w // 2, y0 - h // 2))
+    entries["fx"] = sprites_entry(frames)
+    lua_spr.append("FX={blood=0}")
+
+
 def item_entries(entries):
     """道具檢查：每個道具自己的 128 色（放在 128–255），12 格轉一圈。"""
     for p in sorted(glob.glob(os.path.join(ART, "items", "*_turn.png"))):
@@ -433,11 +464,19 @@ def main():
     actor_imgs = [rgba_of(os.path.join(ART, "characters", n, f"{n}_sheet.png")) for n in CHARACTERS]
     actor_imgs += [rgba_of(p) for p in glob.glob(os.path.join(ART, "icons", "*.png")) if not p.endswith("icons_sheet.png")]
     actor_imgs += [rgba_of(os.path.join(ART, "ui", f"{n}.png")) for n in UI_SPRITES]
+    # 地上那灘血的顏色（深紅的漸層）也要放進共用調色盤，否則會被量化成別的顏色
+    swatch = np.zeros((4, 64, 4), np.uint8)
+    swatch[..., 0] = np.linspace(35, 75, 64).astype(np.uint8)
+    swatch[..., 1] = np.linspace(4, 8, 64).astype(np.uint8)
+    swatch[..., 2] = np.linspace(4, 8, 64).astype(np.uint8)
+    swatch[..., 3] = 255
+    actor_imgs += [Image.fromarray(swatch, "RGBA")] * 6
     actor_pal, palimg = build_actor_palette(actor_imgs)
     entries["actors"] = pal_entry(ACTOR_FIRST, actor_pal)
 
     character_entries(entries, palimg, lua_spr)
     icon_entries(entries, palimg, lua_spr)
+    fx_entries(entries, palimg, lua_spr)
     item_entries(entries)
     screen_entries(entries, lua_spr)
     room_entries(entries, lua_rooms)

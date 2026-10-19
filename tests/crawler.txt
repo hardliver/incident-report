@@ -1,0 +1,49 @@
+# 一樓西側走廊：爬行的殭屍抓腳 → 左右甩開 → 往下瞄準打死（配合 --start hall_west,1200,6000,0）
+30
+2 A
+40
+2 A
+10
+2 SELECT
+120 U
+60
+4 L
+4
+4 R
+4
+4 L
+4
+4 R
+4
+4 L
+4
+4 R
+4
+4 L
+4
+4 R
+4
+4 L
+4
+4 R
+4
+4 L
+4
+4 R
+4
+6 D
+30
+20 LB D
+2 LB D RB
+22 LB D
+2 LB D RB
+22 LB D
+2 LB D RB
+22 LB D
+2 LB D RB
+22 LB D
+2 LB D RB
+22 LB D
+2 LB D RB
+22 LB D
+200

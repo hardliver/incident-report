@@ -24,6 +24,8 @@ STEP_Z = 0.35       # 一步最多能上下多少（樓梯每一階 0.3）
 CELL = 0.25         # 鏡頭格子的大小
 PPM = 62            # 角色圖每公尺幾像素
 W, H = 320, 240
+DEPTH_BIAS = 25     # 深度比較的餘裕（公分），和遊戲裡 actor.lua 的一樣
+MIN_SCALE = 75      # 角色至少要這麼大（256 = 原尺寸，75 ≈ 身高 32 像素）：再小玩家就看不清楚了
 
 
 def inpoly(p, x, y):
@@ -54,6 +56,15 @@ class Room:
             self.surfaces.append((r["level"], r["poly"], r))
         self.cams = rj["cameras"]
         self._depth = {}
+        # 每個鏡頭「站」在哪一層：鏡頭在二樓地板的正上方 → 二樓的鏡頭。
+        # 一樓的角色不用二樓的鏡頭（玩家會以為自己跑到二樓了），二樓的角色也不用一樓的低機位（從地板下面看）
+        self.cam_floor = []
+        for c in self.cams:
+            fl = 0
+            for f in rj.get("floors", []):
+                if c["pos"][2] > f["z"] and any(inpoly(p, c["pos"][0], c["pos"][1]) for p in f["walk"]):
+                    fl = f["level"]
+            self.cam_floor.append(fl)
 
     @staticmethod
     def surf_z(spec, x, y):
@@ -136,11 +147,12 @@ class Room:
             if pr is None:
                 return 0, 0, False
             sx, sy, zf, _ = pr
-            if not (6 <= sx <= W - 6 and 2 <= sy <= H - 2):
+            # 留邊：頭頂、腳底離畫面邊緣至少 10 像素（貼著邊緣的角色看起來像被切掉）
+            if not (8 <= sx <= W - 8 and 10 <= sy <= H - 6):
                 inside = False
                 continue
             d = dep[int(sy), int(sx)]
-            if d == 0 or d > zf * 100 - 15:
+            if d == 0 or d > zf * 100 - DEPTH_BIAS:
                 vis += 1
         # 角色的寬度也要在畫面裡（左右各 0.25 公尺）
         for dx in (-0.25, 0.25):
@@ -151,7 +163,35 @@ class Room:
 
     def good(self, cam, x, y, z):
         vis, scale, inside = self.view(cam, x, y, z)
-        return inside and vis >= 2 and 60 <= scale <= 560, vis, scale
+        return inside and vis >= 2 and MIN_SCALE <= scale <= 560, vis, scale
+
+    def door_visible(self, cam, door):
+        """門（中心、1 公尺高）在這個鏡頭的畫面裡，而且沒被擋住。"""
+        xs = [p[0] for p in door["poly"]]
+        ys = [p[1] for p in door["poly"]]
+        cx, cy, cz = sum(xs) / len(xs), sum(ys) / len(ys), door.get("z", 0) + 1.0
+        pr = self.project(cam, cx, cy, cz)
+        if pr is None:
+            return False
+        sx, sy, zf, _ = pr
+        if not (4 <= sx <= W - 4 and 4 <= sy <= H - 4):
+            return False
+        d = self.depth(cam)[int(sy), int(sx)]
+        # 門貼在牆上：牆本身的深度就在門的位置，所以比門近 40 公分以上才算被擋住
+        return d == 0 or d > zf * 100 - 40
+
+    def doors_near(self, x, y, z, r=1.6):
+        """離這一點最近的門（1.6 公尺以內、同一層）；兩扇門都很近時，只要求看得到最近的那扇。"""
+        best, bd = [], 1e9
+        for d in self.rj["doors"]:
+            xs = [p[0] for p in d["poly"]]
+            ys = [p[1] for p in d["poly"]]
+            if (min(xs) - r <= x <= max(xs) + r and min(ys) - r <= y <= max(ys) + r
+                    and abs(d.get("z", 0) - z) < 1.0):
+                dist = math.hypot(x - sum(xs) / len(xs), y - sum(ys) / len(ys))
+                if dist < bd:
+                    best, bd = [d], dist
+        return best
 
     def zone_cam(self, x, y):
         for zn in self.rj.get("zones", []):
@@ -163,12 +203,23 @@ class Room:
         """每一格：(看得到的鏡頭位元遮罩, 最好的鏡頭編號 1 起算；0 = 都看不到)。依 level 分開。"""
         grids = {}
         cells = self.standable_cells()
+        self.door_blind = []      # 站在門附近，但選到的鏡頭看不到那扇門的格子（檢查工具會列出來）
         for (i, j, x, y, z, lv) in cells:
             zc = self.zone_cam(x, y) if lv == 0 else None
+            near = self.doors_near(x, y, z)
             mask, best, best_score = 0, 0, -1
             for k, cam in enumerate(self.cams):
+                if lv < 10 and self.cam_floor[k] != lv and not (lv > 0 and cam["pos"][2] > z + 1.0):
+                    continue          # 別層的鏡頭（樓梯上 level 10 以上不限制）
                 ok, vis, scale = self.good(cam, x, y, z)
                 if ok:
+                    # 站在門附近：鏡頭也要看得到那扇門，否則玩家不知道門在哪裡。
+                    # 看不到門的鏡頭不算「好」（不會因為遲滯一直停在這個鏡頭）
+                    door_ok = all(self.door_visible(cam, d) for d in near)
+                    if near and not door_ok and any(
+                            self.good(c2, x, y, z)[0] and all(self.door_visible(c2, d) for d in near)
+                            for c2 in self.cams):
+                        continue
                     mask |= 1 << k
                     # 優先：原本設計的鏡頭區 → 看得到的點多 → 大小接近 250（不會太遠、太近）
                     score = (500 if cam["id"] == zc else 0) + vis * 100 - abs(scale - 250) / 10
@@ -186,6 +237,8 @@ class Room:
                 grids.setdefault(lv, {})[(i, j)] = (0, fb)
                 continue
             grids.setdefault(lv, {})[(i, j)] = (mask, best)
+            if near and not all(self.door_visible(self.cams[best - 1], d) for d in near):
+                self.door_blind.append((x, y, [d["id"] for d in near]))
         return grids, cells
 
 

@@ -20,6 +20,11 @@ def build(k):
     finally:
         kit.pool_basin = orig
     data["cameras"] = [c for c in data["cameras"] if c["id"] != "bottom"]
+    # 少了池底的機位，東側拍不到：補兩台（tools/suggest_cameras.py 找的位置）
+    data["cameras"] += [
+        {"id": "east", "pos": (13.6, 0.4, 2.3), "target": (12.1, 8.5, 0.6), "fov": 72},
+        {"id": "south_e", "pos": (3.6, 0.4, 2.3), "target": (12.2, 0.9, 0.6), "fov": 72},
+    ]
     data["zones"] = [z for z in data["zones"] if z["camera"] != "bottom"]
     data["notes"] = "抽水前的版本（P7 之前）。"
     return data

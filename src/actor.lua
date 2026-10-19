@@ -32,6 +32,7 @@ local function frame_of(a, dir)
     local start, n = an[1], an[2]
     local i = a.t * a.fps // 60
     if a.once then i = math.min(i, n - 1) else i = i % n end
+    if a.rev then i = n - 1 - i end          -- 倒著播（殭屍從地上爬起來＝倒下的動畫倒過來）
     return start + dir * n + i
 end
 
@@ -50,7 +51,24 @@ function A.draw(a)
     local s = a.scr
     if s == nil then return end
     local dir, flip = W.view_dir(a.yaw)
-    sprdraw(a.spr, frame_of(a, dir), s.x, s.y, s.scale, flip, s.depth)
+    -- 深度留一點餘裕：腳邊的地板比腳的中心近一點點，不能把腳擋掉。
+    -- 趴在地上的身體往鏡頭這邊延伸將近 1 公尺，餘裕要更大
+    sprdraw(a.spr, frame_of(a, dir), s.x, s.y, s.scale, flip, s.depth - (a.prone and 110 or 25))
+end
+
+-- 地上的一灘血：屍體下面慢慢擴大（4 格，越來越大）。在角色之前畫（貼在地上）
+local fx = nil
+function A.draw_pools(list)
+    fx = fx or sprload("fx")
+    for _, a in ipairs(list) do
+        if a.pool then
+            local sx, sy, depth, zf = W.project(a.x, a.y, a.z or 0)
+            if sx then
+                local f = math.min(3, a.pool // 45)
+                sprdraw(fx, FX.blood + f, sx, sy, W.scale(zf, 62), false, depth - 120)
+            end
+        end
+    end
 end
 
 -- 一群角色：由遠到近畫（近的蓋住遠的）

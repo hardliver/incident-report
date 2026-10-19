@@ -33,8 +33,9 @@ function W.update_camera(x, y, lv)
     local i, j = (x - g.x0) // g.cell, (y - g.y0) // g.cell
     local s = g.lv[lv or 0]
     if s == nil or i < 0 or j < 0 or i >= g.nx or j >= g.ny then return false end
-    local k = (j * g.nx + i) * 2 + 1
-    local mask, best = s:byte(k) - 48, s:byte(k + 1) - 48
+    local k = (j * g.nx + i) * 4 + 1
+    local mask = (s:byte(k) - 48) | ((s:byte(k + 1) - 48) << 5) | ((s:byte(k + 2) - 48) << 10)
+    local best = s:byte(k + 3) - 48
     if best == 0 then return false end
     -- 目前的鏡頭還看得到：不換
     for n, id in ipairs(W.room.cam_ids) do

@@ -249,6 +249,86 @@
    "anim": "feed",
    "dir": 7,
    "frames": 2
+  },
+  {
+   "anim": "crawl",
+   "dir": 0,
+   "frames": 6
+  },
+  {
+   "anim": "crawl",
+   "dir": 1,
+   "frames": 6
+  },
+  {
+   "anim": "crawl",
+   "dir": 2,
+   "frames": 6
+  },
+  {
+   "anim": "crawl",
+   "dir": 3,
+   "frames": 6
+  },
+  {
+   "anim": "crawl",
+   "dir": 4,
+   "frames": 6
+  },
+  {
+   "anim": "crawl",
+   "dir": 5,
+   "frames": 6
+  },
+  {
+   "anim": "crawl",
+   "dir": 6,
+   "frames": 6
+  },
+  {
+   "anim": "crawl",
+   "dir": 7,
+   "frames": 6
+  },
+  {
+   "anim": "reach",
+   "dir": 0,
+   "frames": 2
+  },
+  {
+   "anim": "reach",
+   "dir": 1,
+   "frames": 2
+  },
+  {
+   "anim": "reach",
+   "dir": 2,
+   "frames": 2
+  },
+  {
+   "anim": "reach",
+   "dir": 3,
+   "frames": 2
+  },
+  {
+   "anim": "reach",
+   "dir": 4,
+   "frames": 2
+  },
+  {
+   "anim": "reach",
+   "dir": 5,
+   "frames": 2
+  },
+  {
+   "anim": "reach",
+   "dir": 6,
+   "frames": 2
+  },
+  {
+   "anim": "reach",
+   "dir": 7,
+   "frames": 2
   }
  ]
 }

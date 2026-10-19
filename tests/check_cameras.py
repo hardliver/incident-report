@@ -39,6 +39,12 @@ def main():
             pct = 100 * miss / max(1, len(g))
             if miss:
                 msgs.append(f"level {lv}：{miss}/{len(g)} 格（{pct:.0f}%）沒有鏡頭看得到")
+        blind = {}
+        for (_x, _y, ids) in room.door_blind:
+            for i in ids:
+                blind[i] = blind.get(i, 0) + 1
+        for door_id, cnt in blind.items():
+            msgs.append(f"門 {door_id} 附近有 {cnt} 格看不到門")
         img.save(os.path.join(ROOT, "build", "camera_maps", f"{n}.png"))
         legend = "、".join(f"{c['id']}" for c in room.cams)
         if msgs:

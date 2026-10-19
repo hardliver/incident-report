@@ -53,6 +53,9 @@ def build(k):
     return {
         "tint": (0.62, 0.7, 0.95),
         "cameras": [
+            {"id": "auto1", "pos": (-5.9, 7.1, 2.9), "target": (-2.6, 3.0, 0.6), "fov": 72},   # tools/suggest_cameras.py
+            {"id": "auto2", "pos": (-5.9, 19.5, 2.3), "target": (-4.6, 14.7, 0.6), "fov": 72},   # tools/suggest_cameras.py
+            {"id": "car", "pos": (5.9, 2.3, 2.3), "target": (3.8, 4.1, 0.6), "fov": 72},
             {"id": "garden", "pos": (-5.6, 12.8, 2.6), "target": (5.0, 18.2, 0.8), "fov": 72},
             {"id": "steps", "pos": (4.6, 12.6, 2.4), "target": (-0.6, 19.2, 1.2), "fov": 72},
             {"id": "drive", "pos": (-4.2, 1.0, 2.1), "target": (1.0, 18.0, 2.6), "fov": 72},

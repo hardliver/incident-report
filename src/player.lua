@@ -2,7 +2,9 @@
 --
 -- 操作（坦克式）：
 --   上：往前走　下：後退　左右：轉身　按住 B＋上：跑
---   按住 L：舉槍瞄準（自動轉向最近的殭屍），瞄準時按 R 開槍、左右微調方向
+--   X：切換「一直跑」（開著的時候，往前走就是跑）
+--   按住 L：舉槍瞄準（自動轉向最近的殭屍），瞄準時按 R 開槍、左右微調方向、
+--     按住下＝往地上瞄準（打趴在地上的殭屍、打腳），按住上＝往上瞄準（打頭，比較容易打中要害）
 --     （和新版惡靈古堡一樣；鍵盤是 Q 舉槍、E 開槍）
 --   沒有肩鍵的手把（紅白機）：按住 B（不按上）舉槍，A 開槍
 --
@@ -11,7 +13,8 @@
 
 P = {}
 
-local LEFT, RIGHT, UP, DOWN, BA, BB, BL, BR = 0, 1, 2, 3, 4, 5, 10, 11
+local LEFT, RIGHT, UP, DOWN, BA, BB, BX, BL, BR = 0, 1, 2, 3, 4, 5, 8, 10, 11
+local SHAKE = 10             -- 被抓住腳時，左右來回甩幾次才掙脫
 local WALK, RUN, BACK, LIMP = 24, 52, 14, 15
 local TURN, AIM_TURN = 4, 3
 local FIRE_COOL = 22         -- 兩發之間至少隔幾幀
@@ -24,6 +27,7 @@ P.hint_t = 0
 function P.new()
     local p = A.new("cole", 0, 0, 0)
     p.hp = 100
+    p.aim_lv = 0
     p.state = "free"
     p.timer = 0
     p.cool = 0
@@ -44,6 +48,29 @@ end
 local function show_hint(s)
     P.hint = s
     P.hint_t = 90
+end
+
+-- 被趴在地上的殭屍抓住腳
+function P.hold(p, e)
+    if p.state == "down" or p.state == "dead" then return end
+    set(p, "held")
+    p.holder = e
+    p.shake = 0
+    p.last_dir = nil
+    A.play(p, "struggle", 4)
+    show_hint("被抓住腳了！左右來回甩開它！")
+end
+
+-- 抓著腳的殭屍咬下去：只扣體力，不會被推開（腳還被抓著）
+function P.bite(p, dmg)
+    p.hp = p.hp - dmg
+    if p.scr then P.blood(p.scr.x, p.scr.y - 20 * p.scr.scale // 256, 8) end
+    if p.hp <= 0 then
+        p.hp = 0
+        E.release(p.holder)
+        set(p, "down")
+        A.play(p, "down", 10, true)
+    end
 end
 
 -- 被咬：扣體力、往後退、硬直一下。體力歸零就倒下
@@ -71,17 +98,19 @@ function P.blood(x, y, n)
     end
 end
 
--- 瞄準時自動轉向最近的殭屍（前方左右 50° 以內、14 公尺以內）
+-- 瞄準時自動轉向最近的殭屍（前方左右 50° 以內、14 公尺以內）。
+-- 最近的是趴在地上的，就自動往下瞄準
 local function auto_aim(p)
-    local best, best_d = nil, 14000
+    local best, best_d, prone = nil, 14000, false
     for _, e in ipairs(E.list) do
         if not e.dead then
             local want = G.yaw_to(e.x - p.x, e.y - p.y)
             local d = W.dist(p.x, p.y, e.x, e.y)
-            if G.angle_diff(want, p.yaw) <= 50 and d < best_d then best, best_d = want, d end
+            if G.angle_diff(want, p.yaw) <= 50 and d < best_d then best, best_d, prone = want, d, e.prone end
         end
     end
     if best then p.yaw = best end
+    p.auto_low = prone
 end
 
 -- 開一槍：打中槍口方向左右 10° 以內最近的殭屍
@@ -100,12 +129,13 @@ local function fire(p)
     gun.n = gun.n - 1
     p.cool = FIRE_COOL
     p.flash = 3
-    A.play(p, "shoot", 12, true)
+    A.play(p, p.aim_lv < 0 and "shoot_down" or "shoot", 12, true)
     p.t = 0
+    -- 打得到誰：往下瞄準＝地上的、和站著的腳；平舉或往上＝只有站著的（子彈從趴著的殭屍頭上飛過去）
     local target, best = nil, 15000
     for _, e in ipairs(E.list) do
         e.alerted = true              -- 槍聲：整個房間的殭屍都會過來
-        if not e.dead then
+        if not e.dead and (p.aim_lv < 0 or not e.prone) then
             local want = G.yaw_to(e.x - p.x, e.y - p.y)
             local d = W.dist(p.x, p.y, e.x, e.y)
             if G.angle_diff(want, p.yaw) <= 10 and d < best then target, best = e, d end
@@ -113,10 +143,12 @@ local function fire(p)
     end
     if target then
         local dmg = 9 + rnd(6)                     -- 9–14
-        if rnd(12) == 0 then dmg = dmg * 4 end      -- 偶爾打中要害
-        E.hit(target, dmg)
+        local crit = p.aim_lv > 0 and 5 or 12      -- 往上瞄準（頭）比較容易打中要害
+        if rnd(crit) == 0 then dmg = dmg * 4 end
+        E.hit(target, dmg, p.aim_lv < 0)
         if target.scr then
-            P.blood(target.scr.x, target.scr.y - 80 * target.scr.scale // 256, dmg > 20 and 16 or 7)
+            local h = target.prone and 15 or (p.aim_lv < 0 and 40 or 80)
+            P.blood(target.scr.x, target.scr.y - h * target.scr.scale // 256, dmg > 20 and 16 or 7)
         end
     end
 end
@@ -145,6 +177,27 @@ function P.update(p)
             set(p, "free")
         end
         return nil
+    elseif st == "held" then
+        -- 腳被抓住：左、右輪流按（同一邊連按不算）
+        local dir = U.pressed(LEFT) and 0 or (U.pressed(RIGHT) and 1 or nil)
+        if dir ~= nil and dir ~= p.last_dir then
+            p.shake = p.shake + 1
+            p.last_dir = dir
+            p.t = p.t + 8             -- 甩腳的動畫跟著動
+        end
+        if p.shake >= SHAKE then
+            E.release(p.holder)
+            p.holder = nil
+            set(p, "free")
+            P.hint_t = 0
+        end
+        return nil
+    end
+
+    -- X：一直跑（開／關）
+    if U.pressed(BX) then
+        p.always_run = not p.always_run
+        show_hint(p.always_run and "一直跑：開" or "一直跑：關")
     end
 
     local has_gun = inv_has("handgun") ~= nil
@@ -158,8 +211,16 @@ function P.update(p)
         end
         if U.held(LEFT) then p.yaw = (p.yaw - AIM_TURN) % 360 end
         if U.held(RIGHT) then p.yaw = (p.yaw + AIM_TURN) % 360 end
+        -- 瞄準的高度：按住下＝往下，按住上＝往上，都沒按＝平舉（自動瞄準到趴著的殭屍時是往下）
+        if U.held(DOWN) then p.aim_lv = -1
+        elseif U.held(UP) and U.held(BL) then p.aim_lv = 1
+        elseif p.auto_low then p.aim_lv = -1
+        else p.aim_lv = 0 end
+        if U.held(UP) then p.auto_low = false end
         if (U.pressed(BR) or U.pressed(BA)) and p.cool == 0 then fire(p) end
-        if p.anim ~= "shoot" or p.t > 12 then A.play(p, "aim") end
+        if (p.anim ~= "shoot" and p.anim ~= "shoot_down") or p.t > 12 then
+            A.play(p, p.aim_lv < 0 and "aim_down" or "aim")
+        end
         return nil
     end
     if st == "aim" then set(p, "free") end
@@ -169,7 +230,7 @@ function P.update(p)
     if U.held(RIGHT) then p.yaw = (p.yaw + TURN) % 360 end
     if U.held(UP) then
         if danger then speed = LIMP
-        elseif U.held(BB) then speed = RUN
+        elseif U.held(BB) or p.always_run then speed = RUN
         else speed = WALK end
     elseif U.held(DOWN) then
         speed = -BACK

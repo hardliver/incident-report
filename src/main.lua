@@ -205,8 +205,12 @@ local function update_play()
 
     local act = P.update(player)
     for _, e in ipairs(E.list) do
-        local dmg = E.update(e, player)
-        if dmg > 0 then P.damage(player, dmg, e) end
+        local dmg, ev = E.update(e, player)
+        if ev == "ankle" then
+            P.hold(player, e)
+        elseif dmg > 0 then
+            if e.state == "ankle" then P.bite(player, dmg) else P.damage(player, dmg, e) end
+        end
     end
     P.update_fx()
     W.update_camera(player.x, player.y, player.lv)
@@ -316,6 +320,7 @@ function _update()
             if DEV_START then
                 player.hp = DEV_START.hp or 100
                 for id, n in pairs(DEV_START.give or {}) do inv_add(id, n) end
+                for k, v in pairs(DEV_START.flags or {}) do FLAGS[k] = v end
                 enter_room(DEV_START.room, DEV_START.x, DEV_START.y, DEV_START.yaw, DEV_START.z)
                 set_state("play")
                 return
@@ -392,6 +397,7 @@ function _draw()
     end
 
     bg()
+    A.draw_pools(E.list)
     A.draw_all(W.actors)
     P.draw_fx(player)
     U.draw()

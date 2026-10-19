@@ -36,6 +36,9 @@ def build(k):
     return {
         "tint": (0.78, 0.86, 0.92),
         "cameras": [
+            {"id": "auto3", "pos": (3.6, 0.4, 2.3), "target": (12.2, 0.9, 0.6), "fov": 72},   # tools/suggest_cameras.py
+            {"id": "auto1", "pos": (0.4, 9.6, 2.3), "target": (1.3, 1.3, 0.6), "fov": 72},   # tools/suggest_cameras.py
+            {"id": "auto2", "pos": (0.4, 0.4, 2.3), "target": (1.6, 8.4, 0.6), "fov": 72},   # tools/suggest_cameras.py
             {"id": "corner_nw", "pos": (0.6, 9.4, 3.4), "target": (8.0, 2.0, -0.6), "fov": 72},
             {"id": "corner_se", "pos": (13.4, 0.6, 3.4), "target": (5.0, 8.0, -0.6), "fov": 72},
             {"id": "door", "pos": (0.6, 0.6, 3.8), "target": (8.0, 6.5, -1.0), "fov": 72},

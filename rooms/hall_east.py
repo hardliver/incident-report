@@ -24,6 +24,7 @@ def build(k):
     return {
         "tint": (0.85, 0.8, 0.72),
         "cameras": [
+            {"id": "auto1", "pos": (0.3, 7.6, 2.3), "target": (1.1, 15.9, 0.6), "fov": 72},   # tools/suggest_cameras.py
             {"id": "south", "pos": (0.3, 0.4, 2.7), "target": (1.5, 9.0, 0.9), "fov": 64},
             {"id": "mid", "pos": (2.1, 10.0, 2.6), "target": (0.9, 1.5, 0.8), "fov": 66},
             {"id": "north", "pos": (1.9, 17.6, 2.8), "target": (1.0, 9.0, 0.6), "fov": 64},

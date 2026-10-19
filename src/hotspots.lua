@@ -53,14 +53,20 @@ LOCKED_TEXT = {
 }
 
 -- 房間裡的殭屍。id 不能重複（殺掉之後記在 FLAGS["dead_" .. id]）。
--- state 省略 = 站著（idle）；"feed" = 跪著啃食，靠近才會站起來
+-- state 省略 = 站著（idle）；"feed" = 跪著啃食，靠近才會站起來；"crawl" = 一開始就趴在地上爬。
+-- feign：被打倒時會不會裝死（省略 = 三成機率）
 ENEMIES = {
     cloakroom = {
         { id = "cloak_first", chr = "zombie_guest", x = 2700, y = 1500, yaw = 90, state = "feed", hp = 55 },
     },
     dining = {
-        { id = "dining_guest", chr = "zombie_guest", x = -3000, y = 9000, yaw = 180, hp = 60 },
-        { id = "dining_maid", chr = "zombie_maid", x = 3000, y = 8200, yaw = 200, hp = 50 },
+        { id = "dining_guest", chr = "zombie_guest", x = -3000, y = 9000, yaw = 180, hp = 60, feign = true },
+        { id = "dining_maid", chr = "zombie_maid", x = 3000, y = 8200, yaw = 200, hp = 50, feign = false },
+    },
+    hall_west = {
+        -- 走廊中段趴著一個爬行的：在暗處，第一次經過很容易被抓腳
+        { id = "hallw_crawler", chr = "zombie_civilian_m", x = 1100, y = 9500, yaw = 180, state = "crawl", hp = 40 },
+        { id = "hallw_guest", chr = "zombie_civilian_f", x = 1200, y = 13800, yaw = 180, hp = 55 },
     },
 }
 
