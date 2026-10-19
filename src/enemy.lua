@@ -99,7 +99,7 @@ function E.update(e, p)
         e.yaw = G.turn_toward(e.yaw, want, TURN)
         local dx = G.sin(e.yaw) * SPEED // 4096
         local dy = G.cos(e.yaw) * SPEED // 4096
-        e.x, e.y = W.move(e.x, e.y, dx, dy, e)
+        W.move(e, dx, dy)
         if dist < REACH and G.angle_diff(e.yaw, want) < 35 and p.state ~= "hurt" and (e.cool or 0) == 0 then
             e.fps = 6
             set(e, "grab", "grab")
@@ -118,7 +118,7 @@ function E.update(e, p)
         -- 往後退一點（被子彈的衝擊推開）
         local dx = -G.sin(e.yaw) * 6 // 4096
         local dy = -G.cos(e.yaw) * 6 // 4096
-        e.x, e.y = W.move(e.x, e.y, dx, dy, e)
+        W.move(e, dx, dy)
         if e.timer >= 18 then
             e.fps = 4
             set(e, "walk", "walk")

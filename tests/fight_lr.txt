@@ -1,0 +1,27 @@
+# 衣帽間：用 L 舉槍、R 開槍（配合 --start cloakroom,1200,800,0）
+30
+2 A
+40
+2 A          # 進入衣帽間
+10
+2 SELECT
+18 R         # 轉向殭屍
+40
+20 LB         # 舉槍（自動瞄準）
+2 LB RB
+22 LB
+2 LB RB
+22 LB
+2 LB RB
+22 LB
+2 LB RB
+22 LB
+2 LB RB
+22 LB
+2 LB RB
+22 LB
+2 LB RB
+22 LB
+2 LB RB
+60 LB
+60

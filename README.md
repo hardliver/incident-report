@@ -38,7 +38,8 @@ python3 tools/ui.py                    # 介面底圖 → art/ui/
 ```sh
 python3 tools/export_pak.py            # art/ → build/incident.pak、src/gen_data.lua
 node ../comet/tools/cart.mjs .         # src/ → build/incident.lua（遊戲檔）
-python3 tests/check_doors.py           # 檢查每扇門都走得到
+python3 tests/check_doors.py           # 檢查每扇門都走得到（含二樓、樓梯）
+python3 tests/check_cameras.py         # 檢查每個站得到的地方都有鏡頭看得到 → build/camera_maps/
 ```
 
 - **在 Comet Studio 玩**：開啟資料夾，選這個資料夾（`comet.json` 裡有 `"pak"`，會自動載入資源包）
@@ -46,7 +47,8 @@ python3 tests/check_doors.py           # 檢查每扇門都走得到
 - **自動測試**：`python3 tests/shots.py tests/typewriter.txt 120,197 --start save_room,1400,2600,0`
   用按鍵腳本跑遊戲、在指定的幀存圖（需要 comet 的 `build/mac`）
 
-操作（坦克式）：上＝前進、下＝後退、左右＝轉身、按住 B＝跑、A＝調查／開門、Select＝除錯資訊。
+操作（坦克式）：上＝前進、下＝後退、左右＝轉身、按住 B＋上＝跑、A＝調查／開門（要面向門）、
+按住 L＝舉槍、R＝開槍（鍵盤：Q、E；沒有肩鍵的手把：按住 B 舉槍、A 開槍）、Start＝物品欄、Select＝除錯資訊。
 
 ## 資料夾
 

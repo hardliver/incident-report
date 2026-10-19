@@ -1,17 +1,17 @@
 -- player.lua：柯爾的操作、狀態、開槍
 --
 -- 操作（坦克式）：
---   上：往前走　下：後退　左右：轉身
---   按住 B（不按上）：舉槍瞄準；瞄準時按 A 開槍，左右微調方向
---   按住 B＋上：跑
---   （有肩鍵的手把：按住 R 也是瞄準）
+--   上：往前走　下：後退　左右：轉身　按住 B＋上：跑
+--   按住 L：舉槍瞄準（自動轉向最近的殭屍），瞄準時按 R 開槍、左右微調方向
+--     （和新版惡靈古堡一樣；鍵盤是 Q 舉槍、E 開槍）
+--   沒有肩鍵的手把（紅白機）：按住 B（不按上）舉槍，A 開槍
 --
 -- 體力 100，狀態分三階段（不用數字顯示，物品欄裡看立繪）：
 --   良好 60 以上　負傷 25–59　危急 24 以下：按著傷口、走得慢、不能跑
 
 P = {}
 
-local LEFT, RIGHT, UP, DOWN, BA, BB, BR = 0, 1, 2, 3, 4, 5, 11
+local LEFT, RIGHT, UP, DOWN, BA, BB, BL, BR = 0, 1, 2, 3, 4, 5, 10, 11
 local WALK, RUN, BACK, LIMP = 24, 52, 14, 15
 local TURN, AIM_TURN = 4, 3
 local FIRE_COOL = 22         -- 兩發之間至少隔幾幀
@@ -136,7 +136,7 @@ function P.update(p)
     elseif st == "dead" then
         return nil
     elseif st == "hurt" then
-        p.x, p.y = W.move(p.x, p.y, p.push_x, p.push_y, p)
+        W.move(p, p.push_x, p.push_y)
         if p.timer >= 36 then set(p, "free") end
         return nil
     elseif st == "reload" then
@@ -149,7 +149,7 @@ function P.update(p)
 
     local has_gun = inv_has("handgun") ~= nil
     local danger = P.status(p) == "danger"
-    local aim_btn = U.held(BR) or (U.held(BB) and (st == "aim" or not U.held(UP)))
+    local aim_btn = U.held(BL) or (U.held(BB) and (st == "aim" or not U.held(UP)))
 
     if has_gun and aim_btn then
         if st ~= "aim" then
@@ -158,7 +158,7 @@ function P.update(p)
         end
         if U.held(LEFT) then p.yaw = (p.yaw - AIM_TURN) % 360 end
         if U.held(RIGHT) then p.yaw = (p.yaw + AIM_TURN) % 360 end
-        if U.pressed(BA) and p.cool == 0 then fire(p) end
+        if (U.pressed(BR) or U.pressed(BA)) and p.cool == 0 then fire(p) end
         if p.anim ~= "shoot" or p.t > 12 then A.play(p, "aim") end
         return nil
     end
@@ -177,7 +177,7 @@ function P.update(p)
     if speed ~= 0 then
         local dx = G.sin(p.yaw) * speed // 4096
         local dy = G.cos(p.yaw) * speed // 4096
-        p.x, p.y = W.move(p.x, p.y, dx, dy, p)
+        W.move(p, dx, dy)
         if speed == RUN then A.play(p, "run", 12)
         elseif danger then A.play(p, "limp", 8)
         else A.play(p, "walk", speed < 0 and 6 or 10) end
@@ -207,7 +207,7 @@ function P.draw_fx(p)
     -- 槍口火光：角色面前、胸口高度的一團黃白色
     if p.flash and p.flash > 0 and p.scr then
         local s = p.scr
-        local gx, gy = W.project(p.x + G.sin(p.yaw) * 650 // 4096, p.y + G.cos(p.yaw) * 650 // 4096, 1350)
+        local gx, gy = W.project(p.x + G.sin(p.yaw) * 650 // 4096, p.y + G.cos(p.yaw) * 650 // 4096, p.z + 1350)
         if gx then
             -- 十字形的小火光：大小跟著角色的遠近，最多 5 像素
             local r = G.clamp(3 * s.scale // 256, 1, 5)

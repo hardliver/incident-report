@@ -8,8 +8,13 @@ IU = { sel = 1, mode = "slots", cmd = 1, t = 0 }
 
 local LAY = INV_LAYOUT
 local CMDS = { "使用", "檢查", "組合", "返回" }
-local STATUS_TEXT = { fine = "良好", caution = "負傷", danger = "危急" }
-local STATUS_COLOR = { fine = 11, caution = 10, danger = 8 }
+-- 心電圖：顏色和心跳的快慢表示狀態（不顯示數字和文字）
+--   良好：綠色、規律　負傷：黃色、快一點　危急：紅色、很快，而且忽大忽小
+local ECG = {
+    fine    = { bright = 11, dim = 3, period = 54 },
+    caution = { bright = 10, dim = 4, period = 40 },
+    danger  = { bright = 8,  dim = 2, period = 28 },
+}
 local icons, ui, turn
 
 function IU.open()
@@ -118,8 +123,7 @@ function IU.draw(p)
     local st = P.status(p)
     local pr = LAY.portrait
     sprdraw(ui, UI["status_cole_" .. st], pr[1], pr[2])
-    local stt = LAY.status_text
-    text(STATUS_TEXT[st], stt[1] + 6, stt[2] + 3, STATUS_COLOR[st])
+    IU.draw_ecg(st, LAY.status_text)
     for i, pos in ipairs(LAY.slots) do
         local slot = INV[i]
         if slot then
@@ -147,5 +151,48 @@ function IU.draw(p)
         draw_desc(IU.msg)
     elseif slot then
         draw_desc(ITEMS[slot.id].name)
+    end
+end
+
+-- 一次心跳的波形：t 是這次心跳開始後第幾幀，回傳往上偏移幾像素
+--（P 波的小起伏 → QRS 的尖峰 → T 波），其餘時間是平的
+local function beat(t)
+    if t >= 2 and t < 6 then return 1 end           -- P 波
+    if t == 8 then return -2 end                    -- Q
+    if t == 9 then return 7 end                     -- R：尖峰
+    if t == 10 then return 3 end
+    if t == 11 then return -3 end                   -- S
+    if t >= 15 and t < 20 then return 2 end         -- T 波
+    return 0
+end
+
+-- 心電圖：一條亮線從左往右掃過去，掃過的地方留下暗一點的舊波形
+function IU.draw_ecg(st, box)
+    local e = ECG[st]
+    local x0, y0, w, h = box[1] + 2, box[2] + 2, box[3] - 4, box[4] - 4
+    rect(x0, y0, w, h, 0)
+    local mid = y0 + h * 2 // 3
+    local sweep = IU.t % w                           -- 掃描線現在在哪一欄
+    local prev
+    for x = 0, w - 1 do
+        local age = (sweep - x) % w                  -- 這一欄是幾幀前畫的
+        if age < w - 6 then                          -- 掃描線前面留一小段空白
+            local t = IU.t - age
+            local b = t % e.period
+            local amp = beat(b)
+            if st == "danger" and (t // e.period) % 3 == 1 then amp = amp * 2 // 3 end   -- 危急：忽大忽小
+            local y = mid - amp
+            local c = age < 24 and e.bright or e.dim
+            -- 和前一欄連起來（尖峰才不會變成斷掉的點）
+            if prev and age > 0 then
+                local a, bb = math.min(prev, y), math.max(prev, y)
+                rect(x0 + x, a, 1, bb - a + 1, c)
+            else
+                rect(x0 + x, y, 1, 1, c)
+            end
+            prev = y
+        else
+            prev = nil
+        end
     end
 end

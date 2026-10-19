@@ -23,6 +23,11 @@ import struct
 import numpy as np
 from PIL import Image
 
+sys_path_tools = os.path.dirname(os.path.abspath(__file__))
+import sys  # noqa: E402
+sys.path.insert(0, sys_path_tools)
+import roomgeo  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 ART = os.path.join(ROOT, "art")
@@ -208,7 +213,7 @@ def room_entries(entries, lua_rooms):
             px, pal = quantize_rgb(Image.open(os.path.join(rdir, cam["bg"])), BG_COLORS)
             depth = np.asarray(Image.open(os.path.join(rdir, cam["depth"]))).astype(np.int64)
             entries[f"{rid}.{cam['id']}"] = bg_entry(px, pal, half_depth(depth))
-        lua_rooms.append(room_lua(rj))
+        lua_rooms.append(room_lua(rj, roomgeo.Room(rj, rdir)))
 
 
 def mm(v):
@@ -219,23 +224,109 @@ def poly_lua(poly):
     return "{" + ",".join(f"{mm(x)},{mm(y)}" for x, y in poly) + "}"
 
 
-def room_lua(rj):
+def door_arrival(room, poly, z):
+    """穿過這扇門進來時站在哪裡：離門最近、站得住的格子（同一層），面向房間裡面。"""
+    cx = sum(p[0] for p in poly) / len(poly)
+    cy = sum(p[1] for p in poly) / len(poly)
+    best, bd = None, 1e9
+    for (_i, _j, x, y, cz, _lv) in room.cells:
+        if abs(cz - z) > 0.5:
+            continue
+        d = math.hypot(x - cx, y - cy)
+        if 0.55 <= d < bd:
+            best, bd = (x, y, cz), d
+    if best is None:
+        return None
+    x, y, cz = best
+    yaw = int(round(math.degrees(math.atan2(x - cx, y - cy)))) % 360    # 背對門（0 = +y，順時針）
+    return x, y, cz, yaw
+
+
+def prop_poly(dp):
+    """擺在場景裡的門（kit.door）→ 門前的範圍：寬 w、往房間裡 0.4 公尺。門朝 +y 再轉 yaw 度（逆時針）。"""
+    a = math.radians(dp["yaw"])
+    ux, uy = math.cos(a), math.sin(a)          # 門的寬度方向
+    nx, ny = -math.sin(a), math.cos(a)         # 門面向的方向（房間裡面）
+    hw = dp["w"] / 2
+    pts = []
+    for (s, t) in ((-hw, 0.0), (hw, 0.0), (hw, 0.4), (-hw, 0.4)):
+        pts.append((dp["x"] + ux * s + nx * t, dp["y"] + uy * s + ny * t))
+    return pts
+
+
+def room_doors(rj, room):
+    """真的門＋場景裡看得到、但沒有通往任何地方的門（變成「鎖著」）。"""
+    doors = [dict(d) for d in rj["doors"]]
+    for dp in rj.get("door_props", []):
+        matched = False
+        for d in rj["doors"]:
+            xs = [p[0] for p in d["poly"]]
+            ys = [p[1] for p in d["poly"]]
+            if (min(xs) - 0.6 <= dp["x"] <= max(xs) + 0.6 and min(ys) - 0.6 <= dp["y"] <= max(ys) + 0.6
+                    and abs(d.get("z", 0) - dp.get("z", 0)) < 0.5):
+                matched = True
+        if not matched:
+            doors.append({"id": f"prop{len(doors)}", "to": "_locked", "poly": prop_poly(dp), "z": dp.get("z", 0), "prop": True})
+    out = []
+    for d in doors:
+        arr = door_arrival(room, d["poly"], d.get("z", 0))
+        a = f',arrive={{{mm(arr[0])},{mm(arr[1])},{mm(arr[2])},{arr[3]}}}' if arr else ""
+        out.append(f'{{id="{d["id"]}",to="{d["to"]}",z={mm(d.get("z", 0))},p={poly_lua(d["poly"])}{a}}}')
+    return ",".join(out)
+
+
+def camera_grid_lua(room):
+    """鏡頭格子 → Lua：每一層一個字串，每格 2 個字元（看得到的鏡頭的位元遮罩、最好的鏡頭），字元 = 48 + 數值。"""
+    grids, _cells = room.grid
+    levels = []
+    for lv, g in sorted(grids.items()):
+        chars = []
+        for j in range(room.ny):
+            for i in range(room.nx):
+                mask, best = g.get((i, j), (0, 0))
+                assert mask < 79 and best < 79
+                chars.append(chr(48 + mask) + chr(48 + best))
+        # 長字串 [==[ … ]==]：裡面的 \ 和 " 不會被當成跳脫字元
+        levels.append(f'[{lv}]=[==[{"".join(chars)}]==]')
+    return (f'{{x0={mm(room.x0)},y0={mm(room.y0)},nx={room.nx},ny={room.ny},cell={mm(roomgeo.CELL)},'
+            f'lv={{{",".join(levels)}}}}}')
+
+
+def surfaces_lua(rj):
+    """地面：{level, 多邊形, z0, z1, 軸, a0, a1}。平的地面 z0 = z1。"""
+    out = []
+    for p in rj["walk"]:
+        out.append(f'{{lv=0,p={poly_lua(p)},z0=0,z1=0}}')
+    for f in rj.get("floors", []):
+        for p in f["walk"]:
+            out.append(f'{{lv={f["level"]},p={poly_lua(p)},z0={mm(f["z"])},z1={mm(f["z"])}}}')
+    for r in rj.get("ramps", []):
+        out.append(f'{{lv={r["level"]},p={poly_lua(r["poly"])},z0={mm(r["z0"])},z1={mm(r["z1"])},'
+                   f'ax="{r["axis"]}",a0={mm(r["a0"])},a1={mm(r["a1"])}}}')
+    blocks = [f'{{lv=0,p={poly_lua(p)}}}' for p in rj.get("blocks", [])]
+    for f in rj.get("floors", []):
+        blocks += [f'{{lv={f["level"]},p={poly_lua(p)}}}' for p in f.get("blocks", [])]
+    return ",".join(out), ",".join(blocks)
+
+
+def room_lua(rj, room):
     """一個房間的資料 → Lua 表格（整數）。"""
+    room.grid = room.camera_grid()
+    room.cells = room.grid[1]
     cams = []
     for c in rj["cameras"]:
         f = 160 / math.tan(math.radians(c["fov"]) / 2)   # 焦距（像素），水平視角
         vec = lambda v: ",".join(str(int(round(a * VEC))) for a in v)  # noqa: E731
         cams.append(f'{c["id"]}={{x={mm(c["pos"][0])},y={mm(c["pos"][1])},z={mm(c["pos"][2])},'
                     f'r={{{vec(c["right"])}}},u={{{vec(c["up"])}}},f={{{vec(c["forward"])}}},foc={int(round(f))}}}')
+    cam_ids = ",".join(f'"{c["id"]}"' for c in rj["cameras"])
     zones = ",".join(f'{{cam="{z["camera"]}",p={poly_lua(z["poly"])}}}' for z in rj["zones"])
-    doors = ",".join(f'{{id="{d["id"]}",to="{d["to"]}",p={poly_lua(d["poly"])}}}' for d in rj["doors"])
-    walk = ",".join(poly_lua(p) for p in rj["walk"])
-    blocks = ",".join(poly_lua(p) for p in rj.get("blocks", []))
+    surf, blocks = surfaces_lua(rj)
     tint = ",".join(str(int(round(t * 256))) for t in rj.get("tint", (1, 1, 1)))
     sp = rj.get("spawn", {"x": 0, "y": 0, "yaw": 0})
-    return (f'ROOMS["{rj["id"]}"]={{cams={{{",".join(cams)}}},zones={{{zones}}},doors={{{doors}}},'
-            f'walk={{{walk}}},blocks={{{blocks}}},tint={{{tint}}},'
-            f'spawn={{x={mm(sp.get("x", 0))},y={mm(sp.get("y", 0))},yaw={int(sp.get("yaw", 0))}}}}}')
+    return (f'ROOMS["{rj["id"]}"]={{cams={{{",".join(cams)}}},cam_ids={{{cam_ids}}},zones={{{zones}}},'
+            f'doors={{{room_doors(rj, room)}}},surf={{{surf}}},blocks={{{blocks}}},grid={camera_grid_lua(room)},'
+            f'tint={{{tint}}},spawn={{x={mm(sp.get("x", 0))},y={mm(sp.get("y", 0))},yaw={int(sp.get("yaw", 0)) % 360}}}}}')
 
 
 def character_entries(entries, palimg, lua_spr):

@@ -23,6 +23,7 @@ def build(k):
     return {
         "tint": (0.85, 0.8, 0.72),
         "cameras": [
+            {"id": "back", "pos": (2.4, 3.4, 2.5), "target": (1.2, 0.4, 0.6), "fov": 74},
             {"id": "door", "pos": (0.4, 0.4, 2.4), "target": (3.0, 3.6, 0.9), "fov": 72},
             {"id": "valves", "pos": (3.0, 1.0, 1.7), "target": (2.2, 3.9, 1.0), "fov": 72},
         ],

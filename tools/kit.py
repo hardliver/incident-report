@@ -26,9 +26,15 @@ TEX = os.path.join(ROOT, "art", "textures")
 # 場景設定
 # ======================================================================
 
+# 這個場景裡擺了哪些門（位置、方向、寬度）。bake_room.py 寫進 room.json 的 door_props，
+# 打包時沒有對應到「真的門」的，就變成「鎖住的門」：玩家看得到的門，調查時一定有反應
+DOOR_PROPS = []
+
+
 def reset_scene():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     _mats.clear()           # 舊場景的材質已經被清掉，快取也要清
+    DOOR_PROPS.clear()
     s = bpy.context.scene
     s.render.engine = "CYCLES"
     s.cycles.device = "CPU"
@@ -453,9 +459,10 @@ def painting(k, x, y, z, yaw=0, w=0.9, h=1.1, tex="painting_dark"):
     k.box((-w / 2, 0.05, -h / 2), (w / 2, 0.055, h / 2), mat(tex, tex), uv=max(w, h), M=M, name="canvas")
 
 
-def door(k, x, y, yaw=0, w=1.0, h=2.2, double=False, tex="wood_furniture"):
-    """門（只是外觀，貼在牆上）。門朝 +y。"""
-    M = T(x, y, 0, yaw)
+def door(k, x, y, yaw=0, w=1.0, h=2.2, double=False, tex="wood_furniture", z=0.0):
+    """門（只是外觀，貼在牆上）。門朝 +y。z：門底的高度（二樓的門）。"""
+    M = T(x, y, z, yaw)
+    DOOR_PROPS.append({"x": x, "y": y, "z": z, "yaw": yaw, "w": w * 2 if double else w})
     wood = mat("door_" + tex, tex)
     frame = mat("wood_furniture", "wood_furniture")
     br = mat("brass", "brass", metal=0.7, rough=0.35)

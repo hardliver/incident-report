@@ -48,9 +48,11 @@ end
 
 local door_anim = nil    -- 開門動畫進行中：{ kind, to, from, door, frame }
 
-local function enter_room(id, x, y, yaw)
+local function enter_room(id, x, y, yaw, z)
     player.x, player.y, player.yaw = x, y, yaw
-    W.load(id, x, y)
+    W.load(id, x, y, z or 0)
+    player.z, player.lv = W.ground(x, y, z or 0)
+    player.z = player.z or 0
     E.spawn(id)
     -- 會擋路的角色：主角＋這個房間的殭屍
     W.actors = { player }
@@ -72,7 +74,8 @@ end
 
 -- 試著開門。不能走的門顯示訊息
 local function try_door(d)
-    if d.to == "_locked" then
+    local key = W.id .. "." .. d.id
+    if key == "foyer.front" then
         if not FLAGS.front_locked_seen then
             FLAGS.front_locked_seen = true
             U.say("門從外面被鎖住了。", "門把下方的鎖孔不是鑰匙孔，\n是四個圓形的凹槽，排成一個菱形。")
@@ -81,8 +84,14 @@ local function try_door(d)
         end
         return
     end
+    if d.to == "_locked" then
+        -- 有寫特別說明的門（hotspots.lua 的 LOCKED_TEXT）就用那一段，否則就是一般的「鎖著」
+        U.say(LOCKED_TEXT[key] or "門鎖著。")
+        return
+    end
     if ROOMS[d.to] == nil then
-        U.say("（這扇門後面的部分還沒有做好。）")
+        -- 還沒做好的房間：在遊戲裡也是一扇打不開的門
+        U.say("門的另一邊好像被什麼東西頂住了，打不開。")
         return
     end
     local kind = DOOR_KIND[W.id .. "." .. d.id] or "wood_single"
@@ -111,7 +120,7 @@ local function write_save(i)
     save_count = save_count + 1
     inv_take("ink_ribbon", 1)
     save(i, {
-        room = W.id, x = player.x, y = player.y, yaw = player.yaw, hp = player.hp,
+        room = W.id, x = player.x, y = player.y, z = player.z, yaw = player.yaw, hp = player.hp,
         flags = FLAGS, inv = INV, time = playtime, saves = save_count,
     })
 end
@@ -125,7 +134,7 @@ local function load_save(i)
     player.hp = s.hp or 100
     playtime = s.time or 0
     save_count = s.saves or 0
-    enter_room(s.room, s.x, s.y, s.yaw)
+    enter_room(s.room, s.x, s.y, s.yaw, s.z)
     set_state("play")
     return true
 end
@@ -200,7 +209,7 @@ local function update_play()
         if dmg > 0 then P.damage(player, dmg, e) end
     end
     P.update_fx()
-    W.update_camera(player.x, player.y)
+    W.update_camera(player.x, player.y, player.lv)
 
     if player.state == "dead" then
         set_state("over")
@@ -213,7 +222,7 @@ local function update_play()
         if h then
             use_hotspot(h)
         else
-            local d = W.door_at(p.x, p.y)
+            local d = W.door_at(p.x, p.y, p.z, p.yaw)
             if d then try_door(d) end
         end
     end
@@ -244,8 +253,8 @@ local function update_door()
     if done then
         local a = door_anim
         door_anim = nil
-        local x, y, yaw = W.arrival(a.to, a.from, a.door)
-        enter_room(a.to, x, y, yaw)
+        local x, y, z, yaw = W.arrival(a.to, a.from, a.door)
+        enter_room(a.to, x, y, yaw, z)
         set_state("play")
         if a.to == "foyer" and a.from == "exterior" and not FLAGS.prologue_lock then
             FLAGS.prologue_lock = true
@@ -307,7 +316,7 @@ function _update()
             if DEV_START then
                 player.hp = DEV_START.hp or 100
                 for id, n in pairs(DEV_START.give or {}) do inv_add(id, n) end
-                enter_room(DEV_START.room, DEV_START.x, DEV_START.y, DEV_START.yaw)
+                enter_room(DEV_START.room, DEV_START.x, DEV_START.y, DEV_START.yaw, DEV_START.z)
                 set_state("play")
                 return
             end
@@ -390,7 +399,7 @@ function _draw()
     if debug then
         local s = player.scr
         text(string.format("%s / %s", W.id, W.cam_id), 4, 4, 10)
-        text(string.format("x %d  y %d  yaw %d", player.x, player.y, player.yaw), 4, 20, 10)
+        text(string.format("x %d  y %d  z %d  lv %d  yaw %d", player.x, player.y, player.z, player.lv or -1, player.yaw), 4, 20, 10)
         if s then text(string.format("depth %d cm  scale %d", s.depth, s.scale), 4, 36, 10) end
         local gun = inv_has("handgun")
         text(string.format("hp %d  %s  ammo %d+%d", player.hp, player.state, gun and gun.n or 0, inv_count("handgun_ammo")), 4, 52, 10)

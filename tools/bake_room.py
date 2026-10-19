@@ -4,6 +4,8 @@
   python3 tools/bake_room.py foyer           # 只做一個房間
   python3 tools/bake_room.py --all
   python3 tools/bake_room.py foyer --fast    # 低取樣，快速看構圖
+  python3 tools/bake_room.py --all --json    # 只更新 room.json（改了可走範圍、門、區域時），不重新算圖
+  python3 tools/bake_room.py gym --depth     # 只算 room.json 和深度遮罩：擺新鏡頭時，配合 tests/check_cameras.py 快速檢查
 
 每個房間是 rooms/<名稱>.py，裡面有一個 build(k) 函式：
   - 用 tools/kit.py 擺設場景
@@ -139,7 +141,7 @@ def preview(q, hits, scene, cam, data, path):
     img.save(path)
 
 
-def bake(name, fast=False):
+def bake(name, fast=False, json_only=False, depth_only=False):
     t0 = time.time()
     mod = load_room(name)
     kit.reset_scene()
@@ -157,13 +159,13 @@ def bake(name, fast=False):
     for c in data["cameras"]:
         cam = make_camera(c)
         scene.camera = cam
-        raw = os.path.join(prev_dir, f"{c['id']}_raw.png")
-        scene.render.filepath = raw
-        bpy.ops.render.render(write_still=True)
-        q = quantize_bg(raw, os.path.join(out_dir, f"{c['id']}_bg.png"))
-        depth, hits = depth_map(scene, cam, k.occluders)
-        Image.fromarray(depth).save(os.path.join(out_dir, f"{c['id']}_depth.png"))
-        preview(q, hits, scene, cam, data, os.path.join(prev_dir, f"{c['id']}_preview.png"))
+        bpy.context.view_layer.update()
+        if depth_only:
+            # 只算深度（擺鏡頭時快速檢查遮擋用，背景沿用舊的）
+            depth, _hits = depth_map(scene, cam, k.occluders)
+            Image.fromarray(depth).save(os.path.join(out_dir, f"{c['id']}_depth.png"))
+        elif not json_only:
+            render_camera(c, cam, scene, k, data, out_dir, prev_dir)
         R = cam.matrix_world.to_3x3()
         cams_json.append({
             "id": c["id"],
@@ -177,7 +179,25 @@ def bake(name, fast=False):
             "depth": f"{c['id']}_depth.png",
         })
         print(f"  {name}/{c['id']}: {time.time() - t0:.1f}s")
+    write_json(name, data, cams_json, out_dir)
+    if not json_only and not depth_only:
+        # 也存一份 .blend 方便用 Blender 打開檢查（不進 repo）
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.join(prev_dir, name + ".blend"))
+    print(f"{name}: done in {time.time() - t0:.1f}s")
 
+
+def render_camera(c, cam, scene, k, data, out_dir, prev_dir):
+    """算一個機位的背景、深度遮罩、預覽圖。"""
+    raw = os.path.join(prev_dir, f"{c['id']}_raw.png")
+    scene.render.filepath = raw
+    bpy.ops.render.render(write_still=True)
+    q = quantize_bg(raw, os.path.join(out_dir, f"{c['id']}_bg.png"))
+    depth, hits = depth_map(scene, cam, k.occluders)
+    Image.fromarray(depth).save(os.path.join(out_dir, f"{c['id']}_depth.png"))
+    preview(q, hits, scene, cam, data, os.path.join(prev_dir, f"{c['id']}_preview.png"))
+
+
+def write_json(name, data, cams_json, out_dir):
     room = {
         "id": name,
         "coords": "x right, y forward, z up, meters; floor z = 0",
@@ -186,21 +206,24 @@ def bake(name, fast=False):
         "cameras": cams_json,
         "walk": [[list(p) for p in poly] for poly in data.get("walk", [])],
         "blocks": [[list(p) for p in poly] for poly in data.get("blocks", [])],
+        # 二樓以上的地板（level 1、2…）和樓梯（斜坡），見 rooms/foyer.py
+        "floors": data.get("floors", []),
+        "ramps": data.get("ramps", []),
         "zones": [{"camera": z["camera"], "poly": [list(p) for p in z["poly"]]} for z in data.get("zones", [])],
         "doors": data.get("doors", []),
+        "door_props": list(kit.DOOR_PROPS),
         "spawn": data.get("spawn", {}),
     }
     with open(os.path.join(out_dir, "room.json"), "w", encoding="utf-8") as f:
         json.dump(room, f, ensure_ascii=False, indent=1)
-    # 也存一份 .blend 方便用 Blender 打開檢查（不進 repo）
-    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(prev_dir, name + ".blend"))
-    print(f"{name}: done in {time.time() - t0:.1f}s")
 
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     fast = "--fast" in sys.argv
+    json_only = "--json" in sys.argv      # 只更新 room.json（可走範圍、門），不重新算圖
+    depth_only = "--depth" in sys.argv    # 只更新 room.json 和深度遮罩（擺鏡頭時用），不算背景
     if "--all" in sys.argv:
         args = sorted(f[:-3] for f in os.listdir(os.path.join(ROOT, "rooms")) if f.endswith(".py") and not f.startswith("_"))
     for n in args:
-        bake(n, fast)
+        bake(n, fast, json_only, depth_only)

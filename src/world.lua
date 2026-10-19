@@ -1,8 +1,9 @@
--- world.lua：房間、固定鏡頭、投影、碰撞、門
+-- world.lua：房間、固定鏡頭、投影、地面與碰撞、門
 --
--- 每個房間有好幾個鏡頭（ROOMS[id].cams），地上畫了好幾塊「鏡頭區」（zones）：
--- 主角走進哪一塊，就切到那一塊指定的鏡頭，換上那個鏡頭預先算好的背景。
--- 這就是早期惡靈古堡的固定視角。
+-- 每個房間有好幾個鏡頭（ROOMS[id].cams）。打包工具把房間切成 25 公分的格子，
+-- 算好每一格「哪些鏡頭看得到角色」和「哪個鏡頭最好」（ROOMS[id].grid，見 tools/roomgeo.py）。
+-- 換鏡頭的規則：目前的鏡頭還看得到角色就不換；看不到才換成那一格最好的鏡頭。
+-- 這樣不會在兩個鏡頭的交界來回跳，也不會出現「人走出畫面」的鏡頭。
 
 W = {
     id = nil,        -- 目前房間的 id
@@ -12,6 +13,7 @@ W = {
 }
 
 local PLAYER_R = 280   -- 角色的半徑（公釐）：離牆、家具至少這麼遠
+local STEP_Z = 350     -- 走一步最多上下多少（樓梯一階 300）
 
 -- 換鏡頭：載入那個鏡頭的背景（像素、顏色、深度）
 local function set_camera(id)
@@ -25,18 +27,23 @@ function W.refresh()
     bgload(W.id .. "." .. W.cam_id)
 end
 
--- 依位置選鏡頭：第一個包含這一點的鏡頭區。都不包含就維持原本的鏡頭
-function W.update_camera(x, y)
-    for _, z in ipairs(W.room.zones) do
-        if G.inpoly(z.p, x, y) then
-            if z.cam ~= W.cam_id then
-                set_camera(z.cam)
-                return true
-            end
-            return false
-        end
+-- 依位置選鏡頭。lv：角色在哪一層（0 = 一樓，1 = 二樓，10 以上 = 樓梯）
+function W.update_camera(x, y, lv)
+    local g = W.room.grid
+    local i, j = (x - g.x0) // g.cell, (y - g.y0) // g.cell
+    local s = g.lv[lv or 0]
+    if s == nil or i < 0 or j < 0 or i >= g.nx or j >= g.ny then return false end
+    local k = (j * g.nx + i) * 2 + 1
+    local mask, best = s:byte(k) - 48, s:byte(k + 1) - 48
+    if best == 0 then return false end
+    -- 目前的鏡頭還看得到：不換
+    for n, id in ipairs(W.room.cam_ids) do
+        if id == W.cam_id and (mask >> (n - 1)) & 1 == 1 then return false end
     end
-    return false
+    local id = W.room.cam_ids[best]
+    if id == W.cam_id then return false end
+    set_camera(id)
+    return true
 end
 
 -- 角色的顏色依房間的光線染色（從物品欄這種不染色的畫面回來時也要呼叫）
@@ -45,17 +52,14 @@ function W.apply_tint()
     paltint(16, 112, t[1], t[2], t[3])
 end
 
--- 進入房間。角色的顏色依房間的光線染色（暖色的燈、冷色的月光）
-function W.load(id, x, y)
+-- 進入房間
+function W.load(id, x, y, z)
     W.id = id
     W.room = ROOMS[id]
     W.cam_id = nil
     W.apply_tint()
-    if not W.update_camera(x, y) then
-        -- 不在任何鏡頭區裡（不該發生）：用第一個鏡頭
-        local first = W.room.zones[1].cam
-        set_camera(first)
-    end
+    local _, lv = W.ground(x, y, z or 0)
+    if not W.update_camera(x, y, lv) then set_camera(W.room.cam_ids[1]) end
 end
 
 -- ============================================================
@@ -98,37 +102,61 @@ function W.view_dir(yaw)
 end
 
 -- ============================================================
--- 碰撞
+-- 地面與碰撞
 -- ============================================================
+-- 地面（ROOMS[id].surf）有三種：一樓（level 0，高度 0）、樓上的地板（level 1…）、
+-- 樓梯（level 10…，高度沿著 x 或 y 從 z0 升到 z1）。障礙物（blocks）只擋同一層。
+-- 一樓和二樓的範圍在地圖上可以重疊（迴廊就在一樓的正上方），靠「高度差」分辨角色在哪一層。
 
--- 這一點能不能站：在可走範圍裡，而且不在任何障礙物（家具）裡
-local function free_point(x, y)
-    local ok = false
-    for _, p in ipairs(W.room.walk) do
-        if G.inpoly(p, x, y) then ok = true break end
-    end
-    if not ok then return false end
-    for _, p in ipairs(W.room.blocks) do
-        if G.inpoly(p, x, y) then return false end
-    end
-    return true
+-- 地面 s 在 (x, y) 的高度
+local function surf_z(s, x, y)
+    if s.ax == nil then return s.z0 end
+    local a = s.ax == "x" and x or y
+    if a <= s.a0 then return s.z0 end
+    if a >= s.a1 then return s.z1 end
+    return s.z0 + (s.z1 - s.z0) * (a - s.a0) // (s.a1 - s.a0)
 end
 
--- 角色站在 (x, y) 可不可以：中心和前後左右四個點都要能站
-function W.can_stand(x, y)
+-- (x, y) 在高度 z 附近站得住的地面：回傳 高度, level；沒有回傳 nil
+function W.ground(x, y, z)
+    local best_z, best_lv, best_d
+    for _, s in ipairs(W.room.surf) do
+        if G.inpoly(s.p, x, y) then
+            local sz = surf_z(s, x, y)
+            local d = math.abs(sz - z)
+            if d <= STEP_Z and (best_d == nil or d < best_d) then
+                local blocked = false
+                for _, b in ipairs(W.room.blocks) do
+                    if b.lv == s.lv and G.inpoly(b.p, x, y) then blocked = true break end
+                end
+                if not blocked then best_z, best_lv, best_d = sz, s.lv, d end
+            end
+        end
+    end
+    return best_z, best_lv
+end
+
+-- 角色站在 (x, y)、腳在高度 z 附近可不可以：中心和前後左右四個點都要站得住。
+-- 可以的話回傳新的高度和 level
+function W.can_stand(x, y, z)
+    local cz, lv = W.ground(x, y, z)
+    if cz == nil then return nil end
     local r = PLAYER_R
-    return free_point(x, y) and free_point(x + r, y) and free_point(x - r, y)
-        and free_point(x, y + r) and free_point(x, y - r)
+    if W.ground(x + r, y, cz) and W.ground(x - r, y, cz) and W.ground(x, y + r, cz) and W.ground(x, y - r, cz) then
+        return cz, lv
+    end
+    return nil
 end
 
 -- 會擋路的角色（主角、活著的殭屍）。由主程式每次換房間時設定
 W.actors = {}
 local BODY = 560   -- 兩個角色中心至少相隔多遠（公釐）
 
--- 從 (x, y) 走到 (nx, ny) 會不會撞到別的角色。已經貼在一起時，只要是「離開」就可以走（不然會卡住）
+-- 從 (x, y) 走到 (nx, ny) 會不會撞到別的角色。已經貼在一起時，只要是「離開」就可以走（不然會卡住）。
+-- 不同樓層的角色不會相撞
 local function bump(self, x, y, nx, ny)
     for _, a in ipairs(W.actors) do
-        if a ~= self and not a.dead then
+        if a ~= self and not a.dead and math.abs((a.z or 0) - (self.z or 0)) < 1000 then
             local ox, oy = nx - a.x, ny - a.y
             local d2 = ox * ox + oy * oy
             if d2 < BODY * BODY then
@@ -140,17 +168,20 @@ local function bump(self, x, y, nx, ny)
     return false
 end
 
-local function ok(self, x, y, nx, ny)
-    return W.can_stand(nx, ny) and not bump(self, x, y, nx, ny)
+local function try(self, nx, ny)
+    local z, lv = W.can_stand(nx, ny, self.z or 0)
+    if z == nil or bump(self, self.x, self.y, nx, ny) then return false end
+    self.x, self.y, self.z, self.lv = nx, ny, z, lv
+    return true
 end
 
--- 從 (x, y) 往 (dx, dy) 移動。撞到東西時試著只走 x 或只走 y，
--- 貼著牆斜走時才會「滑」過去，而不是整個卡住。self：誰在走（不和自己相撞）
-function W.move(x, y, dx, dy, self)
-    if ok(self, x, y, x + dx, y + dy) then return x + dx, y + dy end
-    if dx ~= 0 and ok(self, x, y, x + dx, y) then return x + dx, y end
-    if dy ~= 0 and ok(self, x, y, x, y + dy) then return x, y + dy end
-    return x, y
+-- 角色 self 往 (dx, dy) 移動（會更新 self.x、y、z、lv）。撞到東西時試著只走 x 或只走 y，
+-- 貼著牆斜走時才會「滑」過去，而不是整個卡住。回傳有沒有動
+function W.move(self, dx, dy)
+    if try(self, self.x + dx, self.y + dy) then return true end
+    if dx ~= 0 and try(self, self.x + dx, self.y) then return true end
+    if dy ~= 0 and try(self, self.x, self.y + dy) then return true end
+    return false
 end
 
 -- 兩點的距離（公釐）。整數開根號：先用浮點數算，再取整數（只用在比較遠近，不影響重播）
@@ -163,10 +194,11 @@ end
 -- 門
 -- ============================================================
 
--- 站在哪扇門前面：門的範圍（牆邊的一塊矩形）往外擴大 60 公分，角色的中心在裡面就算。
--- 角色碰不到牆（離牆至少一個半徑），所以一定要擴大，否則永遠走不進門的範圍
-function W.door_at(x, y)
+-- 面前的門：門的範圍（牆邊的一塊矩形）往外擴大 60 公分，角色的中心在裡面、
+-- 和門在同一層，而且面向門所在的那面牆（左右 60° 以內）。背對著門打不開
+function W.door_at(x, y, z, yaw)
     local r = 600
+    local fx, fy = G.sin(yaw), G.cos(yaw)
     for _, d in ipairs(W.room.doors) do
         local p = d.p
         local x0, y0, x1, y1 = p[1], p[2], p[1], p[2]
@@ -174,43 +206,35 @@ function W.door_at(x, y)
             x0 = math.min(x0, p[i * 2 - 1]); x1 = math.max(x1, p[i * 2 - 1])
             y0 = math.min(y0, p[i * 2]);     y1 = math.max(y1, p[i * 2])
         end
-        if x >= x0 - r and x <= x1 + r and y >= y0 - r and y <= y1 + r then return d end
+        if x >= x0 - r and x <= x1 + r and y >= y0 - r and y <= y1 + r and math.abs(z - d.z) < 1000 then
+            -- 面向判斷：要面向「門所在的那面牆」。門的進入點（arrive，打包工具算的，在門前、房間裡面）
+            -- 指向門中心的方向，就是「朝著門」的方向；和角色面向的夾角要小於 60°（cos 60° = 0.5）
+            local cx, cy = G.center(p)
+            local nx, ny = cx - x, cy - y
+            if d.arrive then nx, ny = cx - d.arrive[1], cy - d.arrive[2] end
+            local len = W.dist(0, 0, nx, ny)
+            if len == 0 or (nx * fx + ny * fy) * 2 > len * 4096 then return d end
+        end
     end
     return nil
 end
 
--- 穿過門之後站在哪裡：新房間裡「通往舊房間」的那扇門，往房間裡面走一步。
--- 回傳 x, y, 面向的角度
+-- 穿過門之後站在哪裡：新房間裡「通往舊房間」的那扇門前面（打包工具算好的 arrive）。
+-- 回傳 x, y, z, 面向的角度
 function W.arrival(room_id, from_id, door_id)
     local room = ROOMS[room_id]
     local door
     for _, d in ipairs(room.doors) do
-        if d.to == from_id then door = d break end
+        if d.to == from_id and d.arrive then door = d break end
     end
     if door == nil then
         for _, d in ipairs(room.doors) do
-            if d.id == door_id then door = d break end
+            if d.id == door_id and d.arrive then door = d break end
         end
     end
     if door == nil then
-        return room.spawn.x, room.spawn.y, room.spawn.yaw % 360
+        return room.spawn.x, room.spawn.y, 0, room.spawn.yaw
     end
-    -- 門的中心往四個方向試：走 900 公釐後站得住的那個方向就是房間裡面
-    local cx, cy = G.center(door.p)
-    local saved = W.room
-    W.room = room                       -- can_stand 看的是 W.room，暫時換一下
-    local best
-    for _, dir in ipairs({ { 0, 1, 0 }, { 1, 0, 90 }, { 0, -1, 180 }, { -1, 0, 270 } }) do
-        for step = 700, 1500, 200 do
-            local x, y = cx + dir[1] * step, cy + dir[2] * step
-            if W.can_stand(x, y) then
-                best = { x, y, dir[3] }
-                break
-            end
-        end
-        if best then break end
-    end
-    W.room = saved
-    if best then return best[1], best[2], best[3] end
-    return room.spawn.x, room.spawn.y, room.spawn.yaw % 360
+    local a = door.arrive
+    return a[1], a[2], a[3], a[4]
 end

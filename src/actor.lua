@@ -13,7 +13,7 @@ local loaded = {}   -- chr 名稱 → sprload 編號（同一種角色只載入�
 
 function A.new(chr, x, y, yaw)
     if loaded[chr] == nil then loaded[chr] = sprload("chr." .. chr) end
-    return { chr = chr, spr = loaded[chr], x = x, y = y, yaw = yaw, anim = "idle", t = 0, fps = 10 }
+    return { chr = chr, spr = loaded[chr], x = x, y = y, z = 0, lv = 0, yaw = yaw, anim = "idle", t = 0, fps = 10 }
 end
 
 -- 換動畫（同一個動畫不重來）。once = true：播完停在最後一格（倒下），否則一直循環
@@ -37,7 +37,7 @@ end
 
 -- 算出畫面上的位置、大小、深度，存在 a.scr（畫的時候、排序時用）。看不到回傳 false
 function A.place(a)
-    local sx, sy, depth, zf = W.project(a.x, a.y, 0)
+    local sx, sy, depth, zf = W.project(a.x, a.y, a.z or 0)
     if sx == nil then
         a.scr = nil
         return false
