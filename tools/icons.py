@@ -233,7 +233,7 @@ SCALE = {"shells": 0.24, "lighter": 0.16, "painkillers": 0.3, "ink_ribbon": 0.3,
          "locker_key": 0.36, "document": 0.34, "barbell_plate": 0.32}
 
 
-def render_icon(name, fn, out_dir):
+def render_icon(name, fn, out_dir, size=None, az_deg=-30, save=True):
     kit.reset_scene()
     s = bpy.context.scene
     s.render.resolution_x = s.render.resolution_y = RENDER
@@ -251,21 +251,49 @@ def render_icon(name, fn, out_dir):
     s.collection.objects.link(cam)
     s.camera = cam
     # 斜上方看（和 PS1 惡靈古堡物品欄的「轉動中的道具」一樣的角度）
-    el, az = math.radians(30), math.radians(-30)
+    el, az = math.radians(30), math.radians(az_deg)
     cam.location = (math.sin(az) * math.cos(el) * 3, -math.cos(az) * math.cos(el) * 3, math.sin(el) * 3)
     cam.rotation_euler = (Vector((0, 0, 0)) - cam.location).to_track_quat("-Z", "Y").to_euler()
     tmp = os.path.join(ROOT, "build", "icon_tmp.png")
     s.render.filepath = tmp
     bpy.ops.render.render(write_still=True)
-    im = Image.open(tmp).convert("RGBA").resize((SIZE, SIZE), Image.LANCZOS)
+    size = size or SIZE
+    im = Image.open(tmp).convert("RGBA").resize((size, size), Image.LANCZOS)
     arr = np.asarray(im).copy()
     arr[..., 3] = np.where(arr[..., 3] > 90, 255, 0)
     out = Image.fromarray(arr)
-    out.save(os.path.join(out_dir, name + ".png"))
+    if save:
+        out.save(os.path.join(out_dir, name + ".png"))
     return out
 
 
+INSPECT = 96        # 檢查畫面的道具大圖
+TURN = 12           # 轉一圈的格數
+
+
+def render_inspect(name):
+    """物品欄裡「檢查」道具時的大圖：96×96、轉一圈 12 格，排成一條。"""
+    out_dir = os.path.join(ROOT, "art", "items")
+    os.makedirs(out_dir, exist_ok=True)
+    strip = Image.new("RGBA", (INSPECT * TURN, INSPECT), (0, 0, 0, 0))
+    for i in range(TURN):
+        im = render_icon(name, ICONS[name], out_dir, size=INSPECT, az_deg=-30 + i * 360 / TURN, save=False)
+        strip.alpha_composite(im, (i * INSPECT, 0))
+    strip.save(os.path.join(out_dir, name + "_turn.png"))
+    return strip
+
+
 def main():
+    if "--inspect" in sys.argv:
+        names = [a for a in sys.argv[1:] if not a.startswith("--")] or list(ICONS)
+        prev = Image.new("RGBA", (INSPECT * 6, INSPECT * len(names)), (24, 20, 28, 255))
+        for r, n in enumerate(names):
+            st = render_inspect(n)
+            for j in range(6):
+                prev.alpha_composite(st.crop((j * 2 * INSPECT, 0, (j * 2 + 1) * INSPECT, INSPECT)), (j * INSPECT, r * INSPECT))
+        prev.save(os.path.join(ROOT, "build", "inspect_preview.png"))
+        print(f"{len(names)} inspect strips")
+        return
     out_dir = os.path.join(ROOT, "art", "icons")
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)

@@ -1,0 +1,7 @@
+{
+ "frames": 20,
+ "fps": 12,
+ "hold_start": 4,
+ "hold_end": 6,
+ "note": "frames share one palette; play while the next room loads"
+}
